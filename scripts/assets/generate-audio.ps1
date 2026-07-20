@@ -28,7 +28,8 @@ function Get-DownloadUrl([object]$Response) {
     return $null
 }
 
-New-Item -ItemType Directory -Force -Path $JobsDirectory, $RawDirectory | Out-Null
+$attemptRawDirectory = Join-Path $RawDirectory "attempt-$Attempt"
+New-Item -ItemType Directory -Force -Path $JobsDirectory, $attemptRawDirectory | Out-Null
 $plan = Get-Content -Raw $PlanPath | ConvertFrom-Json
 $submissions = foreach ($asset in $plan.assets) {
     if ($asset.model -eq 'seed_audio') {
@@ -47,5 +48,5 @@ foreach ($submission in $submissions) {
     Set-Content -Path (Join-Path $JobsDirectory "$($submission.Asset.id)-a$Attempt-complete.json") -Value $completeJson -NoNewline -Encoding utf8
     $downloadUrl = Get-DownloadUrl ($completeJson | ConvertFrom-Json)
     if (-not $downloadUrl) { throw "No raw download URL in completion for $($submission.Asset.id)." }
-    Invoke-WebRequest -Uri $downloadUrl -OutFile (Join-Path $RawDirectory "$($submission.Asset.id).wav")
+    Invoke-WebRequest -Uri $downloadUrl -OutFile (Join-Path $attemptRawDirectory "$($submission.Asset.id).wav")
 }

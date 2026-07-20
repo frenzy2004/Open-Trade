@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 from pathlib import Path
 
@@ -66,20 +67,42 @@ def compose_icon(coin_path: Path, output: Path, size: int) -> None:
         icon.save(output, format="PNG", optimize=True)
 
 
-def source_for(asset_id: str, raw_root: Path) -> Path:
-    matches = sorted(raw_root.glob(f"{asset_id}.*"))
+def accepted_attempts(review_path: Path, required_ids: set[str]) -> dict[str, int]:
+    """Return exactly one valid accepted attempt for every required asset ID."""
+    accepted: dict[str, int] = {}
+    with review_path.open(newline="", encoding="utf-8") as review_file:
+        for row in csv.DictReader(review_file):
+            if row.get("accepted", "").lower() != "true" or row.get("id") not in required_ids:
+                continue
+            asset_id = row["id"]
+            if asset_id in accepted:
+                raise ValueError(f"{asset_id} must have exactly one accepted review row")
+            if row.get("attempt") not in {"1", "2"}:
+                raise ValueError(f"{asset_id} accepted review attempt must be 1 or 2")
+            accepted[asset_id] = int(row["attempt"])
+    missing = required_ids - accepted.keys()
+    if missing:
+        raise ValueError(f"Missing accepted review rows: {', '.join(sorted(missing))}")
+    return accepted
+
+
+def source_for(asset_id: str, raw_root: Path, attempt: int) -> Path:
+    matches = sorted((raw_root / f"attempt-{attempt}").glob(f"{asset_id}.*"))
     if not matches:
-        raise FileNotFoundError(f"Missing raw source for {asset_id} under {raw_root}")
+        raise FileNotFoundError(f"Missing raw source for {asset_id} attempt {attempt} under {raw_root}")
+    if len(matches) != 1:
+        raise ValueError(f"Expected one raw source for {asset_id} attempt {attempt}; found {len(matches)}")
     return matches[0]
 
 
-def process(plan_path: Path, background_root: Path, alpha_root: Path, inspection_root: Path) -> None:
+def process(plan_path: Path, background_root: Path, alpha_root: Path, inspection_root: Path, review_path: Path) -> None:
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    attempts = accepted_attempts(review_path, {asset["id"] for asset in plan["assets"]})
     backgrounds: list[tuple[str, Path]] = []
     runner_kit: list[tuple[str, Path]] = []
     for asset in plan["assets"]:
         raw_root = background_root if asset["kind"] == "background" else alpha_root
-        with Image.open(source_for(asset["id"], raw_root)) as raw:
+        with Image.open(source_for(asset["id"], raw_root, attempts[asset["id"]])) as raw:
             if asset["kind"] == "background":
                 processed = cover_crop(raw, (asset["width"], asset["height"]))
                 save_image(processed, Path(asset["output"]), background=True)
@@ -102,9 +125,10 @@ def main() -> None:
     parser.add_argument("--plan", type=Path, default=Path("design/higgsfield/generation-plan.json"))
     parser.add_argument("--background-root", type=Path, default=Path("work/higgsfield/raw/static"))
     parser.add_argument("--alpha-root", type=Path, default=Path("work/higgsfield/raw/alpha"))
+    parser.add_argument("--review", type=Path, default=Path("design/higgsfield/review.csv"))
     parser.add_argument("--inspection-root", type=Path, default=Path("work/higgsfield/inspection"))
     arguments = parser.parse_args()
-    process(arguments.plan, arguments.background_root, arguments.alpha_root, arguments.inspection_root)
+    process(arguments.plan, arguments.background_root, arguments.alpha_root, arguments.inspection_root, arguments.review)
 
 
 if __name__ == "__main__":

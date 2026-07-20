@@ -40,7 +40,8 @@ function Get-DownloadUrl([object]$Response) {
     return $null
 }
 
-New-Item -ItemType Directory -Force -Path $JobsDirectory, $RawDirectory | Out-Null
+$attemptRawDirectory = Join-Path $RawDirectory "attempt-$Attempt"
+New-Item -ItemType Directory -Force -Path $JobsDirectory, $attemptRawDirectory | Out-Null
 $plan = Get-Content -Raw $PlanPath | ConvertFrom-Json
 $style = (Get-Content -Raw $StylePath).TrimEnd()
 $submissions = foreach ($asset in $plan.assets) {
@@ -65,5 +66,5 @@ foreach ($submission in $submissions) {
     $downloadUrl = Get-DownloadUrl ($completeJson | ConvertFrom-Json)
     if (-not $downloadUrl) { throw "No raw download URL in completion for $($submission.Asset.id)." }
     $extension = if ($submission.Asset.transparent) { '.png' } else { '.webp' }
-    Invoke-WebRequest -Uri $downloadUrl -OutFile (Join-Path $RawDirectory "$($submission.Asset.id)$extension")
+    Invoke-WebRequest -Uri $downloadUrl -OutFile (Join-Path $attemptRawDirectory "$($submission.Asset.id)$extension")
 }

@@ -215,6 +215,7 @@ class SpriteToolsTest(unittest.TestCase):
                 ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
                 text=True,
                 capture_output=True,
+                cwd=temporary,
                 check=False,
             )
             output = result.stdout + result.stderr
@@ -303,6 +304,92 @@ class SpriteToolsTest(unittest.TestCase):
             result = self.run_asset_validator(fixture_root)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("ws-coin accepted review attempt must be 1 or 2", result.stderr)
+
+    def test_process_images_uses_each_static_asset_review_selected_attempt(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            plan_path = temporary / "design/higgsfield/generation-plan.json"
+            plan_path.parent.mkdir(parents=True)
+            plan_path.write_bytes((ROOT / "design/higgsfield/generation-plan.json").read_bytes())
+            plan = json.loads(plan_path.read_text())
+            background_root = temporary / "raw/static"
+            alpha_root = temporary / "raw/alpha"
+            review_path = temporary / "design/higgsfield/review.csv"
+            review_path.parent.mkdir(parents=True, exist_ok=True)
+            review_rows = ["id,stage,attempt,model,accepted,inspection,compensation"]
+            for asset in plan["assets"]:
+                accepted_attempt = 2 if asset["id"] in {"fs-draft-room", "ws-coin"} else 1
+                review_rows.append(f"{asset['id']},final,{accepted_attempt},test,true,fixture,none")
+                for attempt, color in ((1, (220, 20, 20, 255)), (2, (20, 220, 20, 255))):
+                    raw_root = alpha_root if asset["transparent"] else background_root
+                    source = raw_root / f"attempt-{attempt}" / f"{asset['id']}.png"
+                    source.parent.mkdir(parents=True, exist_ok=True)
+                    image = Image.new("RGBA", (64, 64), color)
+                    image.save(source)
+            review_path.write_text("\n".join(review_rows) + "\n")
+            result = subprocess.run(
+                [
+                    "python", str(ROOT / "scripts/assets/process-images.py"), "--plan", str(plan_path),
+                    "--background-root", str(background_root), "--alpha-root", str(alpha_root),
+                    "--review", str(review_path), "--inspection-root", str(temporary / "inspection"),
+                ],
+                text=True,
+                capture_output=True,
+                cwd=temporary,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            with Image.open(temporary / "src/assets/generated/fanstocks/draft-room.webp") as image:
+                red, green, _ = image.convert("RGB").getpixel((0, 0))
+                self.assertGreater(green, red)
+            with Image.open(temporary / "src/assets/generated/wallstreet-surfers/coin.png") as image:
+                red, green, _, _ = image.getpixel((128, 128))
+                self.assertGreater(green, red)
+
+    def test_normalize_audio_uses_review_selected_attempt_directories(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            plan_path = temporary / "design/higgsfield/audio-plan.json"
+            plan_path.parent.mkdir(parents=True)
+            plan_path.write_bytes((ROOT / "design/higgsfield/audio-plan.json").read_bytes())
+            plan = json.loads(plan_path.read_text())
+            review_path = temporary / "design/higgsfield/review.csv"
+            review_rows = ["id,stage,attempt,model,accepted,inspection,compensation"]
+            raw_root = temporary / "raw/audio"
+            expected_inputs = []
+            for asset in plan["assets"]:
+                attempt = 2 if asset["id"] == "arcade-loop" else 1
+                review_rows.append(f"{asset['id']},final,{attempt},test,true,fixture,none")
+                for candidate in (1, 2):
+                    source = raw_root / f"attempt-{candidate}" / f"{asset['id']}.wav"
+                    source.parent.mkdir(parents=True, exist_ok=True)
+                    source.write_bytes(f"{asset['id']}-attempt-{candidate}".encode())
+                expected_inputs.append(raw_root / f"attempt-{attempt}" / f"{asset['id']}.wav")
+            review_path.write_text("\n".join(review_rows) + "\n")
+            marker = temporary / "ffmpeg-inputs.txt"
+            command = (
+                f"function ffmpeg {{ Add-Content -Path '{marker.as_posix()}' -Value ($args -join '|'); $global:LASTEXITCODE=0 }}; "
+                f"& '{(ROOT / 'scripts/assets/normalize-audio.ps1').as_posix()}' -PlanPath '{plan_path.as_posix()}' "
+                f"-RawDirectory '{raw_root.as_posix()}' -ReviewPath '{review_path.as_posix()}'"
+            )
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+                text=True,
+                capture_output=True,
+                cwd=temporary,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            calls = marker.read_text()
+            for expected_input in expected_inputs:
+                self.assertIn(str(expected_input), calls)
+            self.assertNotIn(str(raw_root / "attempt-1/arcade-loop.wav"), calls)
+
+    def test_asset_runtime_requirements_are_pinned(self):
+        self.assertEqual(
+            (ROOT / "requirements-assets.txt").read_text(encoding="utf-8"),
+            "Pillow==12.3.0\nnumpy==2.5.1\n",
+        )
 
 
 if __name__ == "__main__":
