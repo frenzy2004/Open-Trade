@@ -21,8 +21,18 @@ export const gameRoute: GameRouteModule = {
   Entry: WallstreetSurfersEntry,
   saveKey: SAVE_KEY,
   reset: () => {
-    clearStoredGame(SAVE_KEY)
-    resetGameProgress('wallstreet-surfers')
+    const cleared = clearStoredGame(SAVE_KEY)
+    if (!cleared.ok) {
+      throw new Error(
+        'Wallstreet Surfers game save reset failed: ' + cleared.reason,
+      )
+    }
+    const progress = resetGameProgress('wallstreet-surfers')
+    if (!progress.ok) {
+      throw new Error(
+        'Wallstreet Surfers progress reset failed: ' + progress.reason,
+      )
+    }
   },
   getProgressBadge: () => readGameProgress('wallstreet-surfers'),
   parseChallenge,

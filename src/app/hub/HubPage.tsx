@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, Dialog, useToasts } from '../../shared/ui'
 import { APP_DISCLAIMER } from '../appMeta'
 import {
@@ -13,6 +13,8 @@ export function HubPage() {
   const [howRoute, setHowRoute] = useState<GameRouteRegistration | null>(null)
   const [resetRoute, setResetRoute] =
     useState<GameRouteRegistration | null>(null)
+  const [isResetting, setIsResetting] = useState(false)
+  const resetInFlightRef = useRef(false)
   const [, refreshProgress] = useState(0)
   const { addToast } = useToasts()
 
@@ -25,13 +27,23 @@ export function HubPage() {
   )
 
   const confirmReset = async () => {
-    if (resetRoute === null) {
+    if (resetRoute === null || resetInFlightRef.current) {
       return
     }
-    const module = await resetRoute.load()
-    module.gameRoute.reset()
-    addToast(resetRoute.metadata.title + ' progress reset', 'success')
-    setResetRoute(null)
+    const route = resetRoute
+    resetInFlightRef.current = true
+    setIsResetting(true)
+    try {
+      const module = await route.load()
+      module.gameRoute.reset()
+      addToast(route.metadata.title + ' progress reset', 'success')
+      setResetRoute(null)
+    } catch {
+      addToast(route.metadata.title + ' progress reset failed', 'warning')
+    } finally {
+      resetInFlightRef.current = false
+      setIsResetting(false)
+    }
   }
 
   return (
@@ -81,7 +93,11 @@ export function HubPage() {
 
       <Dialog
         open={resetRoute !== null}
-        onClose={() => setResetRoute(null)}
+        onClose={() => {
+          if (!isResetting) {
+            setResetRoute(null)
+          }
+        }}
         title={
           resetRoute === null
             ? 'Reset progress'
@@ -90,11 +106,17 @@ export function HubPage() {
         description="This removes only this game save from this browser."
         actions={
           <>
-            <Button variant="secondary" onClick={() => setResetRoute(null)}>
+            <Button
+              variant="secondary"
+              disabled={isResetting}
+              onClick={() => setResetRoute(null)}
+            >
               Keep progress
             </Button>
             <Button
               variant="danger"
+              disabled={isResetting}
+              aria-busy={isResetting}
               onClick={() => void confirmReset()}
               aria-label={
                 resetRoute === null

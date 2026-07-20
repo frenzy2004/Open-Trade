@@ -21,8 +21,14 @@ export const gameRoute: GameRouteModule = {
   Entry: FounderModeEntry,
   saveKey: SAVE_KEY,
   reset: () => {
-    clearStoredGame(SAVE_KEY)
-    resetGameProgress('founder-mode')
+    const cleared = clearStoredGame(SAVE_KEY)
+    if (!cleared.ok) {
+      throw new Error('Founder Mode game save reset failed: ' + cleared.reason)
+    }
+    const progress = resetGameProgress('founder-mode')
+    if (!progress.ok) {
+      throw new Error('Founder Mode progress reset failed: ' + progress.reason)
+    }
   },
   getProgressBadge: () => readGameProgress('founder-mode'),
   parseChallenge,

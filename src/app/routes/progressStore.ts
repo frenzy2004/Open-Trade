@@ -1,6 +1,7 @@
 import {
   createGameStore,
   type GameSaveCodec,
+  type GameStoreWriteResult,
   type StorageLike,
 } from '../../shared/persistence/gameStore'
 import type { GameId, GameProgressBadge } from './types'
@@ -105,9 +106,9 @@ const progressCodec: GameSaveCodec<ProgressState> = {
 export interface ProgressStore {
   read(id: GameId): GameProgressBadge
   readAll(): ProgressState
-  set(id: GameId, badge: GameProgressBadge): void
-  reset(id: GameId): void
-  resetAll(): void
+  set(id: GameId, badge: GameProgressBadge): GameStoreWriteResult
+  reset(id: GameId): GameStoreWriteResult
+  resetAll(): GameStoreWriteResult
 }
 
 export function createProgressStore(storage?: StorageLike): ProgressStore {
@@ -128,7 +129,7 @@ export function createProgressStore(storage?: StorageLike): ProgressStore {
     read: (id) => readAll()[id],
     readAll,
     set(id, badge) {
-      store.save(
+      return store.save(
         createProgressSnapshot({
           ...readAll(),
           [id]: badge,
@@ -136,7 +137,7 @@ export function createProgressStore(storage?: StorageLike): ProgressStore {
       )
     },
     reset(id) {
-      store.save(
+      return store.save(
         createProgressSnapshot({
           ...readAll(),
           [id]: DEFAULT_PROGRESS[id],
@@ -144,15 +145,20 @@ export function createProgressStore(storage?: StorageLike): ProgressStore {
       )
     },
     resetAll() {
-      store.save(createDefaultProgress())
+      return store.save(createDefaultProgress())
     },
   }
 }
 
 const browserProgressStore = createProgressStore()
 
-function announceProgressChange(): void {
-  window.dispatchEvent(new Event(PROGRESS_EVENT))
+function announceProgressChange(
+  result: GameStoreWriteResult,
+): GameStoreWriteResult {
+  if (result.ok) {
+    window.dispatchEvent(new Event(PROGRESS_EVENT))
+  }
+  return result
 }
 
 export function readGameProgress(id: GameId): GameProgressBadge {
@@ -162,19 +168,16 @@ export function readGameProgress(id: GameId): GameProgressBadge {
 export function setGameProgress(
   id: GameId,
   badge: GameProgressBadge,
-): void {
-  browserProgressStore.set(id, badge)
-  announceProgressChange()
+): GameStoreWriteResult {
+  return announceProgressChange(browserProgressStore.set(id, badge))
 }
 
-export function resetGameProgress(id: GameId): void {
-  browserProgressStore.reset(id)
-  announceProgressChange()
+export function resetGameProgress(id: GameId): GameStoreWriteResult {
+  return announceProgressChange(browserProgressStore.reset(id))
 }
 
-export function resetAllGameProgress(): void {
-  browserProgressStore.resetAll()
-  announceProgressChange()
+export function resetAllGameProgress(): GameStoreWriteResult {
+  return announceProgressChange(browserProgressStore.resetAll())
 }
 
 export function subscribeToGameProgress(listener: () => void): () => void {

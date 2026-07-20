@@ -21,8 +21,14 @@ export const gameRoute: GameRouteModule = {
   Entry: FanStocksEntry,
   saveKey: SAVE_KEY,
   reset: () => {
-    clearStoredGame(SAVE_KEY)
-    resetGameProgress('fanstocks')
+    const cleared = clearStoredGame(SAVE_KEY)
+    if (!cleared.ok) {
+      throw new Error('FanStocks game save reset failed: ' + cleared.reason)
+    }
+    const progress = resetGameProgress('fanstocks')
+    if (!progress.ok) {
+      throw new Error('FanStocks progress reset failed: ' + progress.reason)
+    }
   },
   getProgressBadge: () => readGameProgress('fanstocks'),
   parseChallenge,

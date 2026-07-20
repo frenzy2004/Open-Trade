@@ -1,8 +1,12 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StorageLike } from '../../shared/persistence/gameStore'
 import {
   createProgressStore,
   DEFAULT_PROGRESS,
+  resetAllGameProgress,
+  resetGameProgress,
+  setGameProgress,
+  subscribeToGameProgress,
 } from './progressStore'
 
 class ProgressStorage implements StorageLike {
@@ -21,11 +25,30 @@ class ProgressStorage implements StorageLike {
   }
 }
 
+class FailingProgressStorage implements StorageLike {
+  getItem(): string | null {
+    return null
+  }
+
+  setItem(): void {
+    throw new Error('Storage write failed')
+  }
+
+  removeItem(): void {
+    throw new Error('Storage remove failed')
+  }
+}
+
 describe('progress store', () => {
   let storage: ProgressStorage
 
   beforeEach(() => {
     storage = new ProgressStorage()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    window.localStorage.clear()
   })
 
   it('starts with the three approved badge summaries', () => {
@@ -93,5 +116,42 @@ describe('progress store', () => {
     )
 
     expect(createProgressStore(storage).readAll()).toEqual(DEFAULT_PROGRESS)
+  })
+
+  it('returns failed write results from every derived progress mutation', () => {
+    const progress = createProgressStore(new FailingProgressStorage())
+    const expected = { ok: false, reason: 'storage-unavailable' }
+
+    expect(
+      progress.set('fanstocks', {
+        label: 'League',
+        value: 'Round 2 of 3',
+        tone: 'positive',
+      }),
+    ).toEqual(expected)
+    expect(progress.reset('fanstocks')).toEqual(expected)
+    expect(progress.resetAll()).toEqual(expected)
+  })
+
+  it('does not announce failed browser progress writes', () => {
+    const listener = vi.fn()
+    const unsubscribe = subscribeToGameProgress(listener)
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('Storage write failed')
+    })
+
+    const expected = { ok: false, reason: 'storage-unavailable' }
+    expect(
+      setGameProgress('fanstocks', {
+        label: 'League',
+        value: 'Round 2 of 3',
+        tone: 'positive',
+      }),
+    ).toEqual(expected)
+    expect(resetGameProgress('fanstocks')).toEqual(expected)
+    expect(resetAllGameProgress()).toEqual(expected)
+    expect(listener).not.toHaveBeenCalled()
+
+    unsubscribe()
   })
 })
