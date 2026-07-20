@@ -1,0 +1,10 @@
+{
+  "assets": [
+    {"id":"ui-confirm","model":"seed_audio","prompt":"Short isolated dry paper-and-casino-chip confirmation, one clean tactile hit, no music, no voice, no ambience.","seconds":0.7,"channels":1,"lufs":-11,"output":"src/assets/audio/shared/ui-confirm.ogg"},
+    {"id":"market-success","model":"seed_audio","prompt":"Single bullish arcade confirmation burst with crisp brass tick and upward energy, no music bed, no voice, no ambience.","seconds":0.9,"channels":1,"lufs":-11,"output":"src/assets/audio/shared/market-success.ogg"},
+    {"id":"market-failure","model":"seed_audio","prompt":"Single bearish arcade rejection buzz with short downward pitch, no music bed, no voice, no ambience.","seconds":0.9,"channels":1,"lufs":-11,"output":"src/assets/audio/shared/market-failure.ogg"},
+    {"id":"coin-pickup","model":"seed_audio","prompt":"Single bright metallic market coin ping with a tiny arcade sparkle, no music, no voice, no ambience.","seconds":0.5,"channels":1,"lufs":-11,"output":"src/assets/audio/wallstreet-surfers/coin-pickup.ogg"},
+    {"id":"collision","model":"seed_audio","prompt":"Single heavy comic market crash combining metal impact and paper burst, no music, no voice, no ambience.","seconds":1.2,"channels":1,"lufs":-11,"output":"src/assets/audio/wallstreet-surfers/collision.ogg"},
+    {"id":"arcade-loop","model":"sonilo_music","prompt":"Thirty-second seamless instrumental finance arcade loop at 108 BPM, warm analog synth bass, brushed breakbeat percussion, restrained brass stabs, subtle stock-ticker rhythm, confident editorial tension, instrumental, no vocals, no spoken words.","seconds":30.0,"channels":2,"lufs":-19,"output":"src/assets/audio/shared/arcade-loop.ogg"}
+  ]
+}

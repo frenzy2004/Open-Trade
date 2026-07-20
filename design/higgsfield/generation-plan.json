@@ -1,0 +1,14 @@
+{
+  "styleFormulaFile": "design/style-formula.txt",
+  "assets": [
+    {"id":"fs-draft-room","kind":"background","model":"nano_banana_flash","description":"smoky editorial stock draft room","aspectRatio":"16:9","resolution":"1k","transparent":false,"width":1280,"height":720,"output":"src/assets/generated/fanstocks/draft-room.webp"},
+    {"id":"fm-boardroom","kind":"background","model":"nano_banana_flash","description":"sparse editorial founder boardroom","aspectRatio":"16:9","resolution":"1k","transparent":false,"width":1280,"height":720,"output":"src/assets/generated/founder-mode/boardroom.webp"},
+    {"id":"ws-runner-street","kind":"background","model":"nano_banana_flash","description":"forward perspective three lane market street","aspectRatio":"16:9","resolution":"1k","transparent":false,"width":1280,"height":720,"output":"src/assets/generated/wallstreet-surfers/runner-street.webp"},
+    {"id":"ws-runner-avatar","kind":"sprite","model":"nano_banana_flash","description":"original scrappy market runner","aspectRatio":"1:1","resolution":"1k","transparent":true,"width":512,"height":512,"output":"src/assets/generated/wallstreet-surfers/runner-avatar.png"},
+    {"id":"ws-train","kind":"sprite","model":"nano_banana_flash","description":"original bull bear ticker train","aspectRatio":"1:1","resolution":"1k","transparent":true,"width":512,"height":512,"output":"src/assets/generated/wallstreet-surfers/train.png"},
+    {"id":"ws-barrier","kind":"sprite","model":"nano_banana_flash","description":"striped financial road barrier","aspectRatio":"1:1","resolution":"1k","transparent":true,"width":256,"height":256,"output":"src/assets/generated/wallstreet-surfers/barrier.png"},
+    {"id":"ws-long-arrow","kind":"ui","model":"nano_banana_flash","description":"upward gain arrow symbol","aspectRatio":"1:1","resolution":"1k","transparent":true,"width":256,"height":256,"output":"src/assets/generated/wallstreet-surfers/long-arrow.png"},
+    {"id":"ws-short-arrow","kind":"ui","model":"nano_banana_flash","description":"downward loss arrow symbol","aspectRatio":"1:1","resolution":"1k","transparent":true,"width":256,"height":256,"output":"src/assets/generated/wallstreet-surfers/short-arrow.png"},
+    {"id":"ws-coin","kind":"ui","model":"nano_banana_flash","description":"glowing market coin symbol","aspectRatio":"1:1","resolution":"1k","transparent":true,"width":256,"height":256,"output":"src/assets/generated/wallstreet-surfers/coin.png"}
+  ]
+}

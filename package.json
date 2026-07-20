@@ -1,0 +1,8 @@
+{
+  "name": "open-trade",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check:assets": "node scripts/assets/validate-assets.mjs"
+  }
+}

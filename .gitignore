@@ -1,0 +1,6 @@
+/work/higgsfield/raw/
+/work/higgsfield/frames/
+/work/higgsfield/inspection/
+/artifacts/
+*.pyc
+__pycache__/
