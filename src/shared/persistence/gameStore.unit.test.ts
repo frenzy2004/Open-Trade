@@ -276,6 +276,114 @@ describe('createGameStore', () => {
     })
   })
 
+  it('contains a decoder value getter that throws after validation', () => {
+    const storage = new MemoryStorage()
+    storage.setItem(
+      codec.key,
+      JSON.stringify({
+        version: 2,
+        savedAt: '2026-07-21T00:00:00.000Z',
+        seed: null,
+        data: { score: 1 },
+      }),
+    )
+    const store = createGameStore(
+      {
+        ...codec,
+        decode: () =>
+          ({
+            ok: true,
+            get value() {
+              throw new Error('value getter failed')
+            },
+          }) as unknown as GameSaveDecodeResult<DemoState>,
+      },
+      { storage },
+    )
+
+    expect(store.load()).toMatchObject({
+      status: 'recovery-required',
+      reason: 'corrupt',
+      detail: 'Saved data could not be decoded',
+    })
+  })
+
+  it('contains a decoder reason getter that throws after validation', () => {
+    const storage = new MemoryStorage()
+    storage.setItem(
+      codec.key,
+      JSON.stringify({
+        version: 2,
+        savedAt: '2026-07-21T00:00:00.000Z',
+        seed: null,
+        data: { score: 1 },
+      }),
+    )
+    let reasonReads = 0
+    const store = createGameStore(
+      {
+        ...codec,
+        decode: () =>
+          ({
+            ok: false,
+            get reason() {
+              reasonReads += 1
+              if (reasonReads === 1) {
+                return 'invalid score'
+              }
+              throw new Error('reason getter failed')
+            },
+          }) as unknown as GameSaveDecodeResult<DemoState>,
+      },
+      { storage },
+    )
+
+    expect(store.load()).toMatchObject({
+      status: 'recovery-required',
+      reason: 'corrupt',
+      detail: 'invalid score',
+    })
+  })
+
+  it('contains a stateful decoder ok getter after validation', () => {
+    const storage = new MemoryStorage()
+    storage.setItem(
+      codec.key,
+      JSON.stringify({
+        version: 2,
+        savedAt: '2026-07-21T00:00:00.000Z',
+        seed: null,
+        data: { score: 1 },
+      }),
+    )
+    let okReads = 0
+    const store = createGameStore(
+      {
+        ...codec,
+        decode: () =>
+          ({
+            get ok() {
+              okReads += 1
+              if (okReads < 3) {
+                return true
+              }
+              throw new Error('ok getter failed')
+            },
+            value: { score: 1 },
+          }) as unknown as GameSaveDecodeResult<DemoState>,
+      },
+      { storage },
+    )
+
+    expect(store.load()).toEqual({
+      status: 'ready',
+      value: { score: 1 },
+      seed: null,
+      savedAt: '2026-07-21T00:00:00.000Z',
+      migrated: false,
+    })
+  })
+
   it('does not throw when browser storage is unavailable', () => {
     const unavailable: StorageLike = {
       getItem() {

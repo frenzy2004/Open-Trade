@@ -89,21 +89,35 @@ function isSaveEnvelope(value: unknown): value is SaveEnvelope {
   )
 }
 
-function isGameSaveDecodeResult<T>(
+function normalizeGameSaveDecodeResult<T>(
   value: unknown,
-): value is GameSaveDecodeResult<T> {
+): GameSaveDecodeResult<T> | null {
   if (typeof value !== 'object' || value === null) {
-    return false
+    return null
   }
 
   const result = value as Record<string, unknown>
-  if (!Object.hasOwn(result, 'ok') || typeof result.ok !== 'boolean') {
-    return false
+  if (!Object.hasOwn(result, 'ok')) {
+    return null
   }
 
-  return result.ok
-    ? Object.hasOwn(result, 'value')
-    : Object.hasOwn(result, 'reason') && typeof result.reason === 'string'
+  const ok = result.ok
+  if (typeof ok !== 'boolean') {
+    return null
+  }
+
+  if (ok) {
+    if (!Object.hasOwn(result, 'value')) {
+      return null
+    }
+    return { ok: true, value: result.value as T }
+  }
+
+  if (!Object.hasOwn(result, 'reason')) {
+    return null
+  }
+  const reason = result.reason
+  return typeof reason === 'string' ? { ok: false, reason } : null
 }
 
 function recovery(
@@ -222,10 +236,11 @@ export function createGameStore<T>(
       let decoded: GameSaveDecodeResult<T>
       try {
         const result = codec.decode(data)
-        if (!isGameSaveDecodeResult<T>(result)) {
+        const normalized = normalizeGameSaveDecodeResult<T>(result)
+        if (normalized === null) {
           return recovery('corrupt', 'Saved data could not be decoded')
         }
-        decoded = result
+        decoded = normalized
       } catch {
         return recovery('corrupt', 'Saved data could not be decoded')
       }
