@@ -303,8 +303,12 @@ export function createGameStore<T>(
       }
       const envelope = Object.create(null) as SaveEnvelope
       envelope.version = codec.version
-      envelope.savedAt = metadata.savedAt ?? now().toISOString()
-      envelope.seed = metadata.seed ?? null
+      const savedAt = Object.hasOwn(metadata, 'savedAt')
+        ? metadata.savedAt
+        : undefined
+      const seed = Object.hasOwn(metadata, 'seed') ? metadata.seed : undefined
+      envelope.savedAt = savedAt ?? now().toISOString()
+      envelope.seed = seed ?? null
       envelope.data = data
       serialized = JSON.stringify(envelope)
       if (!isSaveEnvelope(JSON.parse(serialized) as unknown)) {

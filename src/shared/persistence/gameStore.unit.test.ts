@@ -334,6 +334,106 @@ describe('createGameStore', () => {
     }
   })
 
+  it('ignores inherited save metadata', () => {
+    const storage = new MemoryStorage()
+    const store = createGameStore(codec, {
+      storage,
+      now: () => new Date('2026-07-21T00:00:00.000Z'),
+    })
+    const originalSeed = Object.getOwnPropertyDescriptor(Object.prototype, 'seed')
+    const originalSavedAt = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'savedAt',
+    )
+    Object.defineProperty(Object.prototype, 'seed', {
+      configurable: true,
+      value: 'inherited-seed',
+      writable: true,
+    })
+    Object.defineProperty(Object.prototype, 'savedAt', {
+      configurable: true,
+      value: '2000-01-01T00:00:00.000Z',
+      writable: true,
+    })
+
+    try {
+      expect(store.save({ score: 1 }, {})).toEqual({ ok: true })
+      expect(JSON.parse(storage.getItem(codec.key) ?? '')).toMatchObject({
+        seed: null,
+        savedAt: '2026-07-21T00:00:00.000Z',
+      })
+    } finally {
+      if (originalSeed === undefined) {
+        delete (Object.prototype as { seed?: unknown }).seed
+      } else {
+        Object.defineProperty(Object.prototype, 'seed', originalSeed)
+      }
+      if (originalSavedAt === undefined) {
+        delete (Object.prototype as { savedAt?: unknown }).savedAt
+      } else {
+        Object.defineProperty(Object.prototype, 'savedAt', originalSavedAt)
+      }
+    }
+  })
+
+  it('contains throwing save metadata getters and proxy traps', () => {
+    const throwingAccessor = {}
+    Object.defineProperty(throwingAccessor, 'seed', {
+      get() {
+        throw new Error('seed read failed')
+      },
+    })
+    const throwingProxy = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error('metadata read failed')
+        },
+        getOwnPropertyDescriptor() {
+          throw new Error('metadata lookup failed')
+        },
+      },
+    )
+
+    for (const metadata of [throwingAccessor, throwingProxy]) {
+      const storage = new MemoryStorage()
+      const store = createGameStore(codec, { storage })
+
+      expect(() => store.save({ score: 1 }, metadata)).not.toThrow()
+      expect(store.save({ score: 1 }, metadata)).toEqual({
+        ok: false,
+        reason: 'encode-failed',
+      })
+      expect(storage.getItem(codec.key)).toBeNull()
+    }
+  })
+
+  it('preserves own save metadata values', () => {
+    const storage = new MemoryStorage()
+    const store = createGameStore(codec, { storage })
+
+    expect(
+      store.save({ score: 1 }, {
+        seed: null,
+        savedAt: '2026-07-21T01:00:00.000Z',
+      }),
+    ).toEqual({ ok: true })
+    expect(JSON.parse(storage.getItem(codec.key) ?? '')).toMatchObject({
+      seed: null,
+      savedAt: '2026-07-21T01:00:00.000Z',
+    })
+    expect(
+      store.save({ score: 2 }, {
+        seed: 'own-seed',
+        savedAt: '2026-07-21T02:00:00.000Z',
+      }),
+    ).toEqual({ ok: true })
+    expect(JSON.parse(storage.getItem(codec.key) ?? '')).toMatchObject({
+      seed: 'own-seed',
+      savedAt: '2026-07-21T02:00:00.000Z',
+    })
+  })
+
   it('ignores inherited now and migrations options', () => {
     const storage = new MemoryStorage()
     let migrationCalls = 0
