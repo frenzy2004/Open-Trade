@@ -14,12 +14,36 @@ if ($Attempt -ne 1 -and $Attempt -ne 2) { throw 'Attempt must be 1 or 2.' }
 Import-Module (Join-Path $PSScriptRoot 'runner-tools.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'higgsfield-job-tools.psm1') -Force
 
-function Wait-And-Download([string]$JobId, [string]$CompletionPath, [string]$RawPath) {
-    $completeJson = higgsfield generate wait $JobId --timeout 20m --interval 5s --json
-    Set-Content -Path $CompletionPath -Value $completeJson -NoNewline -Encoding utf8
-    $downloadUrl = Get-HiggsfieldResultUrl -JsonText $completeJson
-    if (-not $downloadUrl) { throw "No raw download URL in completion for $JobId." }
-    Invoke-WebRequest -Uri $downloadUrl -OutFile $RawPath
+function Resolve-RunnerStage {
+    param(
+        [Parameter(Mandatory)][string]$StageName,
+        [Parameter(Mandatory)][string]$RawPath,
+        [Parameter(Mandatory)][scriptblock]$CreateJob
+    )
+
+    $requestPath = Join-Path $JobsDirectory "$StageName-a$Attempt-request.json"
+    $completionPath = Join-Path $JobsDirectory "$StageName-a$Attempt-complete.json"
+    if (Test-Path $requestPath) {
+        $requestJson = Get-Content -Raw $requestPath
+    } elseif (Test-Path $RawPath) {
+        throw "$StageName raw output exists without request provenance; refusing to create a duplicate job."
+    } else {
+        $requestJson = & $CreateJob
+        Set-Content -Path $requestPath -Value $requestJson -NoNewline -Encoding utf8
+    }
+
+    if (-not (Test-Path $RawPath)) {
+        if (Test-Path $completionPath) {
+            $completeJson = Get-Content -Raw $completionPath
+        } else {
+            $jobId = Get-HiggsfieldJobId -JsonText $requestJson
+            $completeJson = higgsfield generate wait $jobId --timeout 20m --interval 5s --json
+            Set-Content -Path $completionPath -Value $completeJson -NoNewline -Encoding utf8
+        }
+        $downloadUrl = Get-HiggsfieldResultUrl -JsonText $completeJson
+        if (-not $downloadUrl) { throw "No raw download URL in completion for $StageName." }
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $RawPath
+    }
 }
 
 if (-not (Test-Path $AvatarPath)) { throw "Missing accepted runner avatar: $AvatarPath" }
@@ -29,16 +53,16 @@ New-Item -ItemType Directory -Force -Path $JobsDirectory, $attemptAnimationRoot,
 
 $style = (Get-Content -Raw $StylePath).TrimEnd("`r", "`n")
 $keyPosePrompt = "$style Original scrappy market runner at the peak of a forward sprint stride, one knee high and opposite arm forward. Full body in frame with empty margin above the head and below the feet. Clean uniform bright magenta #FF00FF background."
-$keyPoseRequest = higgsfield generate create flux_2 --image $AvatarPath --prompt $keyPosePrompt --aspect_ratio 1:1 --resolution 1k --json
-Set-Content -Path (Join-Path $JobsDirectory "ws-run-loop-key-pose-a$Attempt-request.json") -Value $keyPoseRequest -NoNewline -Encoding utf8
 $keyPosePath = Join-Path $attemptAnimationRoot 'run-pose.png'
-Wait-And-Download (Get-HiggsfieldJobId -JsonText $keyPoseRequest) (Join-Path $JobsDirectory "ws-run-loop-key-pose-a$Attempt-complete.json") $keyPosePath
+Resolve-RunnerStage -StageName 'ws-run-loop-key-pose' -RawPath $keyPosePath -CreateJob {
+    higgsfield generate create flux_2 --image $AvatarPath --prompt $keyPosePrompt --aspect_ratio 1:1 --resolution 1k --json
+}
 
 $videoPrompt = New-RunnerVideoPrompt -StyleFormula $style
-$videoRequest = higgsfield generate create seedance1_5 --start-image $keyPosePath --end-image $keyPosePath --prompt $videoPrompt --duration 4 --resolution 720p --aspect_ratio 1:1 --generate_audio false --json
-Set-Content -Path (Join-Path $JobsDirectory "ws-run-loop-video-a$Attempt-request.json") -Value $videoRequest -NoNewline -Encoding utf8
 $videoPath = Join-Path $attemptAnimationRoot 'run.mp4'
-Wait-And-Download (Get-HiggsfieldJobId -JsonText $videoRequest) (Join-Path $JobsDirectory "ws-run-loop-video-a$Attempt-complete.json") $videoPath
+Resolve-RunnerStage -StageName 'ws-run-loop-video' -RawPath $videoPath -CreateJob {
+    higgsfield generate create seedance1_5 --start-image $keyPosePath --end-image $keyPosePath --prompt $videoPrompt --duration 4 --resolution 720p --aspect_ratio 1:1 --generate_audio false --json
+}
 
 $rawFrames = Join-Path $attemptFramesRoot 'raw'
 $selectedFrames = Join-Path $attemptFramesRoot 'selected'

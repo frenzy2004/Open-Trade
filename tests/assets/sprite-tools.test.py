@@ -451,6 +451,77 @@ class SpriteToolsTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse(paid_marker.exists(), "resume path attempted a Higgsfield create/wait or raw download")
 
+    def test_runner_resume_skips_paid_calls_for_partial_and_full_stage_states(self):
+        for partial in (True, False):
+            with self.subTest(partial=partial), tempfile.TemporaryDirectory() as temporary_directory:
+                temporary = Path(temporary_directory)
+                jobs = temporary / "jobs"
+                jobs.mkdir()
+                animation = temporary / "animation/attempt-1"
+                animation.mkdir(parents=True)
+                avatar = temporary / "avatar.png"
+                Image.new("RGBA", (8, 8), (255, 255, 255, 255)).save(avatar)
+                (animation / "run-pose.png").write_bytes(b"existing-key-pose")
+                (animation / "run.mp4").write_bytes(b"existing-video")
+                complete = '{"status":"completed","result_url":"https://full.example/result","min_result_url":"https://min.example/result"}'
+                for stage, job_id in (("ws-run-loop-key-pose", "flux-job"), ("ws-run-loop-video", "seedance-job")):
+                    request = jobs / f"{stage}-a1-request.json"
+                    request.write_text(f'["{job_id}"]')
+                    if not (partial and stage == "ws-run-loop-key-pose"):
+                        (jobs / f"{stage}-a1-complete.json").write_text(complete)
+                paid_marker = temporary / "paid-call-marker"
+                command = (
+                    "$ErrorActionPreference = 'Stop'; "
+                    f"function higgsfield {{ New-Item -ItemType File -Path '{paid_marker.as_posix()}' | Out-Null; throw 'paid call' }}; "
+                    f"function Invoke-WebRequest {{ New-Item -ItemType File -Path '{paid_marker.as_posix()}' | Out-Null; throw 'download call' }}; "
+                    "function ffmpeg { throw 'stop after runner resume checks' }; "
+                    f"& '{(ROOT / 'scripts/assets/generate-runner.ps1').as_posix()}' -AvatarPath '{avatar.as_posix()}' -StylePath '{(ROOT / 'design/style-formula.txt').as_posix()}' "
+                    f"-JobsDirectory '{jobs.as_posix()}' -AnimationRoot '{(temporary / 'animation').as_posix()}' -FramesRoot '{(temporary / 'frames').as_posix()}' "
+                    f"-OutputPath '{(temporary / 'runner_run_f15_256x256_g4x4_fps16_loop.png').as_posix()}' -Attempt 1"
+                )
+                result = subprocess.run(
+                    ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertFalse(paid_marker.exists(), result.stdout + result.stderr)
+                self.assertEqual((jobs / "ws-run-loop-key-pose-a1-request.json").read_text(), '["flux-job"]')
+                self.assertEqual((jobs / "ws-run-loop-video-a1-request.json").read_text(), '["seedance-job"]')
+
+    def test_background_removal_resume_skips_higgsfield_and_download_for_complete_raw_frames(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            frames = temporary / "selected"
+            alpha = temporary / "alpha"
+            jobs = temporary / "jobs"
+            frames.mkdir()
+            alpha.mkdir()
+            jobs.mkdir()
+            complete = '{"status":"completed","result_url":"https://full.example/result","min_result_url":"https://min.example/result"}'
+            for index in range(16):
+                Image.new("RGBA", (8, 8), (255, 255, 255, 255)).save(frames / f"{index:04d}.png")
+                Image.new("RGBA", (8, 8), (255, 255, 255, 255)).save(alpha / f"{index:04d}.png")
+                stem = f"ws-run-loop-frame-{index:04d}-remove-bg-a1"
+                (jobs / f"{stem}-request.json").write_text(f'["remove-{index}"]')
+                (jobs / f"{stem}-complete.json").write_text(complete)
+            paid_marker = temporary / "paid-call-marker"
+            command = (
+                "$ErrorActionPreference = 'Stop'; "
+                f"function higgsfield {{ New-Item -ItemType File -Path '{paid_marker.as_posix()}' | Out-Null; throw 'paid call' }}; "
+                f"function Invoke-WebRequest {{ New-Item -ItemType File -Path '{paid_marker.as_posix()}' | Out-Null; throw 'download call' }}; "
+                f"& '{(ROOT / 'scripts/assets/remove-backgrounds.ps1').as_posix()}' -FrameRoot '{frames.as_posix()}' -OutputRoot '{alpha.as_posix()}' "
+                f"-ProvenancePrefix 'ws-run-loop-frame' -JobsDirectory '{jobs.as_posix()}' -Attempt 1"
+            )
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(paid_marker.exists(), "background removal resume issued a paid call or download")
+
 
 if __name__ == "__main__":
     unittest.main()
