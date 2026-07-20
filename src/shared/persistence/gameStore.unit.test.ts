@@ -3,6 +3,7 @@ import {
   createGameStore,
   type GameSaveCodec,
   type GameSaveDecodeResult,
+  type GameStoreOptions,
   type StorageLike,
 } from './gameStore'
 
@@ -308,6 +309,256 @@ describe('createGameStore', () => {
         Object.defineProperty(Object.prototype, '0', originalZero)
       }
     }
+  })
+
+  it('ignores an inherited Object.prototype.storage option', () => {
+    const inheritedStorage = new MemoryStorage()
+    const originalStorage = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'storage',
+    )
+    Object.defineProperty(Object.prototype, 'storage', {
+      configurable: true,
+      value: inheritedStorage,
+    })
+
+    try {
+      createGameStore(codec).save({ score: 1 })
+      expect(inheritedStorage.getItem(codec.key)).toBeNull()
+    } finally {
+      if (originalStorage === undefined) {
+        delete (Object.prototype as { storage?: unknown }).storage
+      } else {
+        Object.defineProperty(Object.prototype, 'storage', originalStorage)
+      }
+    }
+  })
+
+  it('ignores inherited now and migrations options', () => {
+    const storage = new MemoryStorage()
+    let migrationCalls = 0
+    const originalNow = Object.getOwnPropertyDescriptor(Object.prototype, 'now')
+    const originalMigrations = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'migrations',
+    )
+    Object.defineProperty(Object.prototype, 'now', {
+      configurable: true,
+      value: () => new Date('2000-01-01T00:00:00.000Z'),
+    })
+    Object.defineProperty(Object.prototype, 'migrations', {
+      configurable: true,
+      value: {
+        0: () => {
+          migrationCalls += 1
+          return { score: 40 }
+        },
+        1: (data: unknown) => data,
+      },
+    })
+
+    try {
+      const store = createGameStore(codec, { storage })
+      expect(store.save({ score: 1 })).toEqual({ ok: true })
+      expect(JSON.parse(storage.getItem(codec.key) ?? '')).toMatchObject({
+        savedAt: expect.not.stringMatching('2000-01-01'),
+      })
+      storage.setItem(
+        codec.key,
+        JSON.stringify({
+          version: 0,
+          savedAt: '2026-07-20T00:00:00.000Z',
+          seed: null,
+          data: { points: 4 },
+        }),
+      )
+      expect(store.load()).toMatchObject({
+        status: 'recovery-required',
+        reason: 'incompatible',
+      })
+      expect(migrationCalls).toBe(0)
+    } finally {
+      if (originalNow === undefined) {
+        delete (Object.prototype as { now?: unknown }).now
+      } else {
+        Object.defineProperty(Object.prototype, 'now', originalNow)
+      }
+      if (originalMigrations === undefined) {
+        delete (Object.prototype as { migrations?: unknown }).migrations
+      } else {
+        Object.defineProperty(
+          Object.prototype,
+          'migrations',
+          originalMigrations,
+        )
+      }
+    }
+  })
+
+  it('ignores an inherited numeric migration', () => {
+    const storage = new MemoryStorage()
+    storage.setItem(
+      codec.key,
+      JSON.stringify({
+        version: 0,
+        savedAt: '2026-07-20T00:00:00.000Z',
+        seed: null,
+        data: { points: 4 },
+      }),
+    )
+    const originalMigration = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      '0',
+    )
+    let migrationCalls = 0
+    Object.defineProperty(Object.prototype, '0', {
+      configurable: true,
+      value: () => {
+        migrationCalls += 1
+        return { score: 40 }
+      },
+      writable: true,
+    })
+
+    try {
+      expect(
+        createGameStore(codec, { storage, migrations: {} }).load(),
+      ).toMatchObject({
+        status: 'recovery-required',
+        reason: 'incompatible',
+      })
+      expect(migrationCalls).toBe(0)
+    } finally {
+      if (originalMigration === undefined) {
+        delete (Object.prototype as { 0?: unknown })[0]
+      } else {
+        Object.defineProperty(Object.prototype, '0', originalMigration)
+      }
+    }
+  })
+
+  it('contains throwing option proxies and accessors', () => {
+    const proxyOptions = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error('option read failed')
+        },
+        getOwnPropertyDescriptor() {
+          throw new Error('option lookup failed')
+        },
+      },
+    ) as GameStoreOptions
+    const accessorOptions = {}
+    Object.defineProperty(accessorOptions, 'now', {
+      get() {
+        throw new Error('now read failed')
+      },
+    })
+
+    expect(() => createGameStore(codec, proxyOptions)).not.toThrow()
+    expect(() => createGameStore(codec, accessorOptions)).not.toThrow()
+    expect(createGameStore(codec, proxyOptions).load()).toMatchObject({
+      status: 'recovery-required',
+      reason: 'storage-unavailable',
+    })
+    expect(createGameStore(codec, accessorOptions).load()).toMatchObject({
+      status: 'recovery-required',
+      reason: 'storage-unavailable',
+    })
+  })
+
+  it('contains throwing migration accessors and proxies', () => {
+    const storage = new MemoryStorage()
+    storage.setItem(
+      codec.key,
+      JSON.stringify({
+        version: 0,
+        savedAt: '2026-07-20T00:00:00.000Z',
+        seed: null,
+        data: { points: 4 },
+      }),
+    )
+    const migrationAccessorOptions = { storage }
+    Object.defineProperty(migrationAccessorOptions, 'migrations', {
+      get() {
+        throw new Error('migrations read failed')
+      },
+    })
+    const migrationProxy = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error('migration read failed')
+        },
+        getOwnPropertyDescriptor() {
+          throw new Error('migration lookup failed')
+        },
+      },
+    )
+
+    expect(() => createGameStore(codec, migrationAccessorOptions)).not.toThrow()
+    expect(
+      createGameStore(codec, migrationAccessorOptions).load(),
+    ).toMatchObject({
+      status: 'recovery-required',
+      reason: 'storage-unavailable',
+    })
+    const proxyStore = createGameStore(codec, {
+      storage,
+      migrations: migrationProxy,
+    })
+    expect(() => proxyStore.load()).not.toThrow()
+    expect(proxyStore.load()).toMatchObject({
+      status: 'recovery-required',
+      reason: 'incompatible',
+    })
+  })
+
+  it.each([
+    new Date('2026-07-21T00:00:00.000Z'),
+    Object.defineProperty({}, 'toJSON', {
+      value() {
+        return { score: 1 }
+      },
+    }),
+    new (class extends Array<number> {})(),
+  ])('rejects unsupported encoded values %#', (encoded) => {
+    const storage = new MemoryStorage()
+    const store = createGameStore(
+      {
+        ...codec,
+        encode: () => encoded,
+      },
+      { storage },
+    )
+
+    expect(store.save({ score: 1 })).toEqual({
+      ok: false,
+      reason: 'encode-failed',
+    })
+    expect(storage.getItem(codec.key)).toBeNull()
+  })
+
+  it('serializes plain and null-prototype encoded records without mutation', () => {
+    const storage = new MemoryStorage()
+    const plain = { score: 1 }
+    const nullPrototype = Object.assign(Object.create(null), { bonus: 2 })
+    const store = createGameStore(
+      {
+        ...codec,
+        encode: () => ({ plain, nullPrototype }),
+      },
+      { storage },
+    )
+
+    expect(store.save({ score: 1 })).toEqual({ ok: true })
+    expect(JSON.parse(storage.getItem(codec.key) ?? '')).toMatchObject({
+      data: { plain: { score: 1 }, nullPrototype: { bonus: 2 } },
+    })
+    expect(plain).toEqual({ score: 1 })
+    expect(Object.getPrototypeOf(plain)).toBe(Object.prototype)
+    expect(Object.getPrototypeOf(nullPrototype)).toBeNull()
   })
 
   it('converts thrown codec decoding errors into recovery-required', () => {

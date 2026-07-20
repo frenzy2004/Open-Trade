@@ -65,6 +65,8 @@ interface SaveEnvelope {
 
 const omittedFromJson = Symbol('omittedFromJson')
 
+// Encoded data is limited to JSON primitives, standard arrays, and plain or
+// null-prototype records so persistence never invokes custom serialization.
 function snapshotJsonData(
   value: unknown,
   ancestors = new WeakSet<object>(),
@@ -92,6 +94,16 @@ function snapshotJsonData(
       ancestors.add(value)
       try {
         if (Array.isArray(value)) {
+          if (Object.getPrototypeOf(value) !== Array.prototype) {
+            throw new TypeError('Only standard arrays can be stored as JSON')
+          }
+          const arrayRecord = value as unknown as Record<string, unknown>
+          if (
+            Object.hasOwn(value, 'toJSON') &&
+            typeof arrayRecord.toJSON === 'function'
+          ) {
+            throw new TypeError('Custom JSON serialization is not supported')
+          }
           const length = value.length
           const snapshot: unknown[] = new Array(length)
           Object.setPrototypeOf(snapshot, null)
@@ -107,6 +119,16 @@ function snapshotJsonData(
           return snapshot
         }
 
+        const prototype = Object.getPrototypeOf(value)
+        if (prototype !== Object.prototype && prototype !== null) {
+          throw new TypeError('Only plain records can be stored as JSON')
+        }
+        if (
+          Object.hasOwn(value, 'toJSON') &&
+          typeof (value as Record<string, unknown>).toJSON === 'function'
+        ) {
+          throw new TypeError('Custom JSON serialization is not supported')
+        }
         const snapshot = Object.create(null) as Record<string, unknown>
         for (const key of Object.keys(value)) {
           const item = snapshotJsonData(
@@ -188,6 +210,75 @@ function recovery(
   return { status: 'recovery-required', reason, detail }
 }
 
+interface ResolvedGameStoreOptions {
+  readonly storage: StorageLike | null
+  readonly now: () => Date
+  readonly migrations: unknown
+  readonly failed: boolean
+}
+
+function resolveGameStoreOptions(
+  options: GameStoreOptions,
+): ResolvedGameStoreOptions {
+  const defaultNow = () => new Date()
+  try {
+    const storageOption = Object.hasOwn(options, 'storage')
+      ? options.storage
+      : undefined
+    const nowOption = Object.hasOwn(options, 'now') ? options.now : undefined
+    const migrations = Object.hasOwn(options, 'migrations')
+      ? options.migrations
+      : undefined
+    if (nowOption !== undefined && typeof nowOption !== 'function') {
+      throw new TypeError('Game store now option must be a function')
+    }
+    return {
+      storage:
+        storageOption === undefined ? getBrowserStorage() : storageOption,
+      now: nowOption ?? defaultNow,
+      migrations,
+      failed: false,
+    }
+  } catch {
+    return {
+      storage: null,
+      now: defaultNow,
+      migrations: undefined,
+      failed: true,
+    }
+  }
+}
+
+type MigrationLookup =
+  | { readonly status: 'found'; readonly migrate: GameSaveMigration }
+  | { readonly status: 'missing' }
+  | { readonly status: 'failed' }
+
+function getOwnMigration(
+  migrations: unknown,
+  version: number,
+): MigrationLookup {
+  if (
+    (typeof migrations !== 'object' && typeof migrations !== 'function') ||
+    migrations === null
+  ) {
+    return { status: 'missing' }
+  }
+
+  try {
+    const key = String(version)
+    if (!Object.hasOwn(migrations, key)) {
+      return { status: 'missing' }
+    }
+    const migration = (migrations as Record<string, unknown>)[key]
+    return typeof migration === 'function'
+      ? { status: 'found', migrate: migration as GameSaveMigration }
+      : { status: 'missing' }
+  } catch {
+    return { status: 'failed' }
+  }
+}
+
 export function createGameStore<T>(
   codec: GameSaveCodec<T>,
   options: GameStoreOptions = {},
@@ -196,9 +287,8 @@ export function createGameStore<T>(
     throw new RangeError('Game save codec version must be a positive integer')
   }
 
-  const storage =
-    options.storage === undefined ? getBrowserStorage() : options.storage
-  const now = options.now ?? (() => new Date())
+  const resolvedOptions = resolveGameStoreOptions(options)
+  const { storage, now, migrations } = resolvedOptions
 
   const save: GameStore<T>['save'] = (value, metadata = {}) => {
     if (storage === null) {
@@ -234,6 +324,12 @@ export function createGameStore<T>(
 
   return {
     load() {
+      if (resolvedOptions.failed) {
+        return recovery(
+          'storage-unavailable',
+          'Game store options could not be read',
+        )
+      }
       if (storage === null) {
         return recovery(
           'storage-unavailable',
@@ -278,15 +374,21 @@ export function createGameStore<T>(
       let migrated = false
 
       while (version < codec.version) {
-        const migrate = options.migrations?.[version]
-        if (migrate === undefined) {
+        const migration = getOwnMigration(migrations, version)
+        if (migration.status === 'failed') {
+          return recovery(
+            'incompatible',
+            'Migration configuration could not be read',
+          )
+        }
+        if (migration.status === 'missing') {
           return recovery(
             'incompatible',
             'No migration exists for save version ' + String(version),
           )
         }
         try {
-          data = migrate(data)
+          data = migration.migrate(data)
         } catch {
           return recovery(
             'corrupt',
