@@ -54,7 +54,7 @@ function inspectImage(relativePath) {
   try {
     const output = execFileSync(
       'python',
-      ['-c', "import json,sys; from PIL import Image; im=Image.open(sys.argv[1]); alpha='A' in im.getbands(); extrema=im.getchannel('A').getextrema() if alpha else None; print(json.dumps({'width':im.width,'height':im.height,'alpha':alpha,'transparentPixel':bool(alpha and extrema[0] < 255)}))", imagePath],
+      ['-c', "import json,sys; from PIL import Image; im=Image.open(sys.argv[1]); alpha='A' in im.getbands(); extrema=im.getchannel('A').getextrema() if alpha else None; pixels=im.convert('RGBA').getdata() if alpha else (); spill=any(0<a<255 and r>120 and b>100 and min(r,b)-g>50 for r,g,b,a in pixels); print(json.dumps({'width':im.width,'height':im.height,'alpha':alpha,'transparentPixel':bool(alpha and extrema[0] < 255),'partialAlphaMagentaSpill':spill}))", imagePath],
       { encoding: 'utf8' },
     );
     return JSON.parse(output);
@@ -77,6 +77,9 @@ function checkImage(spec) {
   }
   if (spec.transparent && !inspected.transparentPixel) {
     errors.push(`${spec.id} must contain at least one transparent pixel`);
+  }
+  if (spec.transparent && inspected.partialAlphaMagentaSpill) {
+    errors.push(`${spec.id} contains partial-alpha magenta key spill`);
   }
   const maximumBytes = spec.id === 'ws-run-loop'
     ? 2 * 1024 * 1024

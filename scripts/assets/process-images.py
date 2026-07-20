@@ -20,13 +20,25 @@ def cover_crop(image: Image.Image, size: tuple[int, int]) -> Image.Image:
     return ImageOps.fit(image.convert("RGB"), size, method=LANCZOS, centering=(0.5, 0.5))
 
 
+def remove_magenta_key_spill(image: Image.Image) -> Image.Image:
+    """Clear only partial-alpha magenta key spill without mutating the source image."""
+    cleaned = image.convert("RGBA").copy()
+    pixels = cleaned.load()
+    for y in range(cleaned.height):
+        for x in range(cleaned.width):
+            red, green, blue, alpha = pixels[x, y]
+            if 0 < alpha < 255 and red > 120 and blue > 100 and min(red, blue) - green > 50:
+                pixels[x, y] = (0, 0, 0, 0)
+    return cleaned
+
+
 def contain_alpha(image: Image.Image, size: tuple[int, int]) -> Image.Image:
     """Contain transparent artwork in an exact alpha PNG canvas without metadata."""
-    source = image.convert("RGBA")
+    source = remove_magenta_key_spill(image)
     source.thumbnail(size, LANCZOS)
     canvas = Image.new("RGBA", size)
     canvas.alpha_composite(source, ((size[0] - source.width) // 2, (size[1] - source.height) // 2))
-    return canvas
+    return remove_magenta_key_spill(canvas)
 
 
 def save_image(image: Image.Image, output: Path, background: bool) -> None:

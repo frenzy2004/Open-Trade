@@ -171,6 +171,19 @@ class SpriteToolsTest(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("ws-coin must contain at least one transparent pixel", result.stderr)
 
+    def test_validator_rejects_partial_alpha_magenta_key_spill(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            fixture_root = Path(temporary_directory)
+            self.build_asset_fixture(fixture_root)
+            coin = fixture_root / "src/assets/generated/wallstreet-surfers/coin.png"
+            with Image.open(coin) as image:
+                spilled = image.convert("RGBA")
+            spilled.putpixel((32, 32), (200, 20, 180, 128))
+            spilled.save(coin)
+            result = self.run_asset_validator(fixture_root)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("ws-coin contains partial-alpha magenta key spill", result.stderr)
+
     def test_validator_requires_static_and_runner_removal_provenance(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             fixture_root = Path(temporary_directory)
@@ -345,6 +358,38 @@ class SpriteToolsTest(unittest.TestCase):
             with Image.open(temporary / "src/assets/generated/wallstreet-surfers/coin.png") as image:
                 red, green, _, _ = image.getpixel((128, 128))
                 self.assertGreater(green, red)
+
+    def test_remove_magenta_key_spill_only_changes_partial_alpha_magenta_pixels(self):
+        process_images = load_module("process_images", "scripts/assets/process-images.py")
+        source = Image.new("RGBA", (4, 1))
+        source.putdata([
+            (200, 20, 180, 128),
+            (200, 20, 180, 255),
+            (200, 20, 180, 0),
+            (200, 150, 180, 128),
+        ])
+
+        cleaned = process_images.remove_magenta_key_spill(source)
+
+        self.assertEqual(list(cleaned.get_flattened_data()), [
+            (0, 0, 0, 0),
+            (200, 20, 180, 255),
+            (200, 20, 180, 0),
+            (200, 150, 180, 128),
+        ])
+        self.assertEqual(list(source.get_flattened_data())[0], (200, 20, 180, 128))
+
+    def test_contain_alpha_cleans_key_spill_after_lanczos_resampling(self):
+        process_images = load_module("process_images", "scripts/assets/process-images.py")
+        source = Image.new("RGBA", (512, 512), (255, 0, 255, 128))
+
+        processed = process_images.contain_alpha(source, (256, 256))
+
+        self.assertEqual(processed.size, (256, 256))
+        self.assertFalse(any(
+            0 < alpha < 255 and red > 120 and blue > 100 and min(red, blue) - green > 50
+            for red, green, blue, alpha in processed.get_flattened_data()
+        ))
 
     def test_normalize_audio_uses_review_selected_attempt_directories(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

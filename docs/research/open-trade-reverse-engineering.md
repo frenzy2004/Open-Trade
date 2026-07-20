@@ -89,3 +89,10 @@ Date: 2026-07-21
 - Evidence: resumed `fm-boardroom` and `market-success` create responses were multi-line job-ID arrays and were safely written as request artifacts.
 - Recovery: accept either a scalar JSON string or an output-line array, joining array lines with deterministic newlines before `ConvertFrom-Json`.
 - Rule: every job-ID and result-URL parser entrypoint accepts both transport forms; on-disk `Get-Content -Raw` remains the scalar form.
+
+### Partial-alpha magenta key spill
+
+- Failure: Alpha QA found a thin visible magenta fringe around each of the six background-removed static assets.
+- Evidence: the fringe pixels were partial-alpha and matched `r > 120`, `b > 100`, and `min(r, b) - g > 50`; opaque magenta artwork and nonmagenta translucent pixels did not match the defect.
+- Recovery: `process-images.py` clears matching pixels to transparent black before LANCZOS scaling and again on the final canvas, preventing resampling from retaining or reintroducing the fringe without changing raw originals.
+- Rule: shipped transparent PNG validation rejects any remaining partial-alpha pixel that matches the key-spill signature.
