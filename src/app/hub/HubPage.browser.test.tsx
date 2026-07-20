@@ -1,4 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest'
+import { userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { App } from '../App'
 import { GAME_ROUTES } from '../routes/registry'
@@ -135,4 +136,53 @@ test('keeps reset confirmation usable when the game reset throws', async () => {
     screen.getByRole('dialog', { name: 'Reset FanStocks progress' }),
   ).toBeVisible()
   await expect.element(confirm).not.toBeDisabled()
+})
+
+test('cancels a pending reset on Escape without allowing its stale load to reset later', async () => {
+  let releaseFirstLoad: () => void = () => {
+    throw new Error('Pending loader was not initialized')
+  }
+  const firstLoad = new Promise<void>((resolve) => {
+    releaseFirstLoad = resolve
+  })
+  const registration = getFanStocksRegistration()
+  const originalLoad = registration.load
+  let loadCount = 0
+  vi.spyOn(registration, 'load').mockImplementation(async () => {
+    loadCount += 1
+    if (loadCount === 1) {
+      await firstLoad
+    }
+    return originalLoad()
+  })
+  window.location.hash = '#/'
+  window.localStorage.setItem('open-trade:game:fanstocks', 'saved')
+  const screen = await render(<App />)
+  const resetButton = screen.getByRole('button', {
+    name: 'Reset FanStocks progress',
+  })
+
+  await resetButton.click()
+  const confirm = screen.getByRole('button', {
+    name: 'Confirm reset FanStocks',
+  })
+  await confirm.click()
+  await expect.element(confirm).toBeDisabled()
+
+  await userEvent.keyboard('{Escape}')
+  await expect.poll(() => document.querySelector('dialog[open]')).toBeNull()
+  await expect.element(resetButton).toHaveFocus()
+
+  releaseFirstLoad()
+  await expect.poll(() => loadCount).toBe(1)
+  expect(window.localStorage.getItem('open-trade:game:fanstocks')).toBe('saved')
+  await expect.poll(() => document.body.textContent).not.toContain(
+    'FanStocks progress reset',
+  )
+
+  await resetButton.click()
+  await screen.getByRole('button', { name: 'Confirm reset FanStocks' }).click()
+  await expect.element(screen.getByText('FanStocks progress reset')).toBeVisible()
+  expect(window.localStorage.getItem('open-trade:game:fanstocks')).toBeNull()
+  expect(loadCount).toBe(2)
 })

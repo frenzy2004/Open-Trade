@@ -15,6 +15,7 @@ export function HubPage() {
     useState<GameRouteRegistration | null>(null)
   const [isResetting, setIsResetting] = useState(false)
   const resetInFlightRef = useRef(false)
+  const resetAttemptRef = useRef(0)
   const [, refreshProgress] = useState(0)
   const { addToast } = useToasts()
 
@@ -26,23 +27,42 @@ export function HubPage() {
     [],
   )
 
+  const cancelReset = () => {
+    resetAttemptRef.current += 1
+    resetInFlightRef.current = false
+    setIsResetting(false)
+    setResetRoute(null)
+  }
+
   const confirmReset = async () => {
     if (resetRoute === null || resetInFlightRef.current) {
       return
     }
     const route = resetRoute
+    const attempt = resetAttemptRef.current + 1
+    resetAttemptRef.current = attempt
     resetInFlightRef.current = true
     setIsResetting(true)
     try {
       const module = await route.load()
+      if (resetAttemptRef.current !== attempt) {
+        return
+      }
       module.gameRoute.reset()
+      if (resetAttemptRef.current !== attempt) {
+        return
+      }
       addToast(route.metadata.title + ' progress reset', 'success')
       setResetRoute(null)
     } catch {
-      addToast(route.metadata.title + ' progress reset failed', 'warning')
+      if (resetAttemptRef.current === attempt) {
+        addToast(route.metadata.title + ' progress reset failed', 'warning')
+      }
     } finally {
-      resetInFlightRef.current = false
-      setIsResetting(false)
+      if (resetAttemptRef.current === attempt) {
+        resetInFlightRef.current = false
+        setIsResetting(false)
+      }
     }
   }
 
@@ -93,11 +113,7 @@ export function HubPage() {
 
       <Dialog
         open={resetRoute !== null}
-        onClose={() => {
-          if (!isResetting) {
-            setResetRoute(null)
-          }
-        }}
+        onClose={cancelReset}
         title={
           resetRoute === null
             ? 'Reset progress'
@@ -108,8 +124,7 @@ export function HubPage() {
           <>
             <Button
               variant="secondary"
-              disabled={isResetting}
-              onClick={() => setResetRoute(null)}
+              onClick={cancelReset}
             >
               Keep progress
             </Button>
