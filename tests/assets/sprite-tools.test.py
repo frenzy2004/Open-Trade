@@ -396,8 +396,8 @@ class SpriteToolsTest(unittest.TestCase):
             [
                 "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
                 f"Import-Module '{(ROOT / 'scripts/assets/higgsfield-job-tools.psm1').as_posix()}'; "
-                "Write-Output (Get-HiggsfieldJobId -JsonText '[\"ba919da5-687d-46c6-962c-472511ffa018\"]'); "
-                "Write-Output (Get-HiggsfieldResultUrl -JsonText '{\"status\":\"completed\",\"result_url\":\"https://full.example/result\",\"min_result_url\":\"https://min.example/result\"}'); "
+                "Write-Output (Get-HiggsfieldJobId -JsonText @('[', '  \"ba919da5-687d-46c6-962c-472511ffa018\"', ']')); "
+                "Write-Output (Get-HiggsfieldResultUrl -JsonText @('{', '  \"status\": \"completed\",', '  \"result_url\": \"https://full.example/result\",', '  \"min_result_url\": \"https://min.example/result\"', '}')); "
                 "Write-Output (Get-HiggsfieldJobId -JsonText '{\"job_id\":\"legacy-job\"}'); "
                 "Write-Output (Get-HiggsfieldResultUrl -JsonText '{\"output\":{\"url\":\"https://legacy.example/result\"}}')",
             ],
@@ -415,25 +415,25 @@ class SpriteToolsTest(unittest.TestCase):
             jobs.mkdir()
             static_plan = temporary / "static-plan.json"
             static_plan.write_text(
-                '{"styleFormulaFile":"style.txt","assets":[{"id":"static-one","kind":"background","model":"nano_banana_flash","description":"fixture","aspectRatio":"16:9","resolution":"1k","transparent":false,"width":1280,"height":720,"output":"unused.webp"}]}'
+                '{"styleFormulaFile":"style.txt","assets":[{"id":"fm-boardroom","kind":"background","model":"nano_banana_flash","description":"fixture","aspectRatio":"16:9","resolution":"1k","transparent":false,"width":1280,"height":720,"output":"unused.webp"}]}'
             )
             style_path = temporary / "style.txt"
             style_path.write_text("fixture style")
             audio_plan = temporary / "audio-plan.json"
             audio_plan.write_text(
-                '{"assets":[{"id":"audio-one","model":"seed_audio","prompt":"fixture","seconds":0.7,"channels":1,"lufs":-11,"output":"unused.ogg"}]}'
+                '{"assets":[{"id":"market-success","model":"seed_audio","prompt":"fixture","seconds":0.7,"channels":1,"lufs":-11,"output":"unused.ogg"}]}'
             )
-            complete = '{"status":"completed","result_url":"https://full.example/result","min_result_url":"https://min.example/result"}'
-            (jobs / "static-one-a1-request.json").write_text('["static-job"]')
-            (jobs / "static-one-a1-complete.json").write_text(complete)
-            (jobs / "audio-one-a1-request.json").write_text('["audio-job"]')
-            (jobs / "audio-one-a1-complete.json").write_text(complete)
+            complete = '{\n  "status": "completed",\n  "result_url": "https://full.example/result",\n  "min_result_url": "https://min.example/result"\n}'
+            (jobs / "fm-boardroom-a1-request.json").write_text('[\n  "fm-boardroom-job"\n]')
+            (jobs / "fm-boardroom-a1-complete.json").write_text(complete)
+            (jobs / "market-success-a1-request.json").write_text('[\n  "market-success-job"\n]')
+            (jobs / "market-success-a1-complete.json").write_text(complete)
             static_raw = temporary / "raw/static/attempt-1"
             audio_raw = temporary / "raw/audio/attempt-1"
             static_raw.mkdir(parents=True)
             audio_raw.mkdir(parents=True)
-            (static_raw / "static-one.webp").write_bytes(b"already-downloaded")
-            (audio_raw / "audio-one.wav").write_bytes(b"already-downloaded")
+            (static_raw / "fm-boardroom.webp").write_bytes(b"already-downloaded")
+            (audio_raw / "market-success.wav").write_bytes(b"already-downloaded")
             paid_marker = temporary / "paid-call-marker"
             command = (
                 "$ErrorActionPreference = 'Stop'; "

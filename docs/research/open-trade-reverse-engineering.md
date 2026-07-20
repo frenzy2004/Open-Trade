@@ -82,3 +82,10 @@ Date: 2026-07-21
 - Evidence: completed static job `ba919da5-687d-46c6-962c-472511ffa018` (`fs-draft-room`) and audio job `27d8d267-62a9-4e03-a61f-d45ff5a0c095` (`ui-confirm`) were returned as one-item request arrays.
 - Recovery: use the shared parser for both exact array and legacy object shapes, prefer the full `result_url` exclusively over `min_result_url`, and preserve attempt-specific request/completion files.
 - Rule: before creating, waiting, or downloading any job, reuse an existing attempt-specific request, completion, and raw file when present. Submit only missing requests before the wait phase; never overwrite or re-submit a resumable attempt.
+
+### Windows PowerShell multiline CLI output
+
+- Failure: Windows PowerShell 5 surfaces multi-line Higgsfield stdout as `System.Object[]`, one line per element. The previous strongly typed `[string]` parser parameters failed during binding before JSON parsing.
+- Evidence: resumed `fm-boardroom` and `market-success` create responses were multi-line job-ID arrays and were safely written as request artifacts.
+- Recovery: accept either a scalar JSON string or an output-line array, joining array lines with deterministic newlines before `ConvertFrom-Json`.
+- Rule: every job-ID and result-URL parser entrypoint accepts both transport forms; on-disk `Get-Content -Raw` remains the scalar form.

@@ -1,17 +1,27 @@
 Set-StrictMode -Version Latest
 
+function ConvertTo-HiggsfieldJsonText {
+    param([Parameter(Mandatory)][object]$JsonText)
+
+    if ($JsonText -is [System.Array]) {
+        return (($JsonText | ForEach-Object { [string]$_ }) -join [Environment]::NewLine)
+    }
+    return [string]$JsonText
+}
+
 function ConvertFrom-HiggsfieldJson {
-    param([Parameter(Mandatory)][string]$JsonText)
+    param([Parameter(Mandatory)][object]$JsonText)
 
     try {
-        return $JsonText | ConvertFrom-Json -ErrorAction Stop
+        $normalizedJson = ConvertTo-HiggsfieldJsonText -JsonText $JsonText
+        return $normalizedJson | ConvertFrom-Json -ErrorAction Stop
     } catch {
         throw "Invalid Higgsfield JSON response: $($_.Exception.Message)"
     }
 }
 
 function Get-HiggsfieldJobId {
-    param([Parameter(Mandatory)][string]$JsonText)
+    param([Parameter(Mandatory)][object]$JsonText)
 
     $response = ConvertFrom-HiggsfieldJson -JsonText $JsonText
     if ($response -is [System.Array]) {
@@ -28,7 +38,7 @@ function Get-HiggsfieldJobId {
 }
 
 function Get-HiggsfieldResultUrl {
-    param([Parameter(Mandatory)][string]$JsonText)
+    param([Parameter(Mandatory)][object]$JsonText)
 
     $response = ConvertFrom-HiggsfieldJson -JsonText $JsonText
     return Get-HiggsfieldResultUrlFromObject -Response $response
