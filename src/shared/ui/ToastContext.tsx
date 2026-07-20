@@ -44,6 +44,9 @@ export function ToastProvider({ children }: PropsWithChildren) {
     setToasts((current) => [...current, { id, message, tone }])
     const timer = window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id))
+      timersRef.current = timersRef.current.filter(
+        (activeTimer) => activeTimer !== timer,
+      )
     }, 4000)
     timersRef.current.push(timer)
   }, [])

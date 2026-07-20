@@ -2,6 +2,7 @@ import {
   type PropsWithChildren,
   type ReactNode,
   useEffect,
+  useId,
   useRef,
 } from 'react'
 import { Button } from './Button'
@@ -24,7 +25,7 @@ export function Dialog({
 }: PropsWithChildren<DialogProps>) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
-  const titleId = 'dialog-title-' + title.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+  const titleId = 'dialog-title-' + useId()
   const descriptionId = titleId + '-description'
 
   useEffect(() => {
@@ -33,7 +34,11 @@ export function Dialog({
       return
     }
 
-    if (open && !dialog.open) {
+    if (open) {
+      if (dialog.open) {
+        return
+      }
+
       previousFocusRef.current =
         document.activeElement instanceof HTMLElement
           ? document.activeElement
@@ -43,19 +48,28 @@ export function Dialog({
         '[data-autofocus], button, [href], input, select, textarea',
       )
       firstControl?.focus()
+      return
     }
 
-    if (!open && dialog.open) {
+    if (dialog.open) {
       dialog.close()
-      previousFocusRef.current?.focus()
     }
+    previousFocusRef.current?.focus()
+  }, [open])
+
+  useEffect(() => {
+    const dialog = dialogRef.current
 
     return () => {
+      if (dialog === null) {
+        return
+      }
+
       if (dialog.open) {
         dialog.close()
       }
     }
-  }, [open])
+  }, [])
 
   return (
     <dialog
