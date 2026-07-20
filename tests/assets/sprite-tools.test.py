@@ -451,30 +451,49 @@ class SpriteToolsTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse(paid_marker.exists(), "resume path attempted a Higgsfield create/wait or raw download")
 
-    def test_runner_resume_skips_paid_calls_for_partial_and_full_stage_states(self):
-        for partial in (True, False):
-            with self.subTest(partial=partial), tempfile.TemporaryDirectory() as temporary_directory:
+    def test_runner_stage_resume_recovers_completion_without_duplicate_creates(self):
+        states = {
+            "request_only": (False, False, 2, 2),
+            "request_completion": (True, False, 0, 2),
+            "request_raw": (False, True, 2, 0),
+            "full": (True, True, 0, 0),
+        }
+        for name, (has_completion, has_raw, expected_waits, expected_downloads) in states.items():
+            with self.subTest(state=name), tempfile.TemporaryDirectory() as temporary_directory:
                 temporary = Path(temporary_directory)
                 jobs = temporary / "jobs"
-                jobs.mkdir()
                 animation = temporary / "animation/attempt-1"
+                alpha = temporary / "frames/attempt-1/alpha"
+                jobs.mkdir()
                 animation.mkdir(parents=True)
+                alpha.mkdir(parents=True)
                 avatar = temporary / "avatar.png"
-                Image.new("RGBA", (8, 8), (255, 255, 255, 255)).save(avatar)
-                (animation / "run-pose.png").write_bytes(b"existing-key-pose")
-                (animation / "run.mp4").write_bytes(b"existing-video")
+                frame_source = temporary / "frame.png"
+                Image.new("RGBA", (16, 16), (255, 255, 255, 255)).save(avatar)
+                Image.new("RGBA", (16, 16), (255, 255, 255, 255)).save(frame_source)
                 complete = '{"status":"completed","result_url":"https://full.example/result","min_result_url":"https://min.example/result"}'
-                for stage, job_id in (("ws-run-loop-key-pose", "flux-job"), ("ws-run-loop-video", "seedance-job")):
-                    request = jobs / f"{stage}-a1-request.json"
-                    request.write_text(f'["{job_id}"]')
-                    if not (partial and stage == "ws-run-loop-key-pose"):
+                for stage, job_id, raw_name in (
+                    ("ws-run-loop-key-pose", "flux-job", "run-pose.png"),
+                    ("ws-run-loop-video", "seedance-job", "run.mp4"),
+                ):
+                    (jobs / f"{stage}-a1-request.json").write_text(f'["{job_id}"]')
+                    if has_completion:
                         (jobs / f"{stage}-a1-complete.json").write_text(complete)
-                paid_marker = temporary / "paid-call-marker"
+                    if has_raw:
+                        (animation / raw_name).write_bytes(f"existing-{raw_name}".encode())
+                for index in range(16):
+                    stem = f"ws-run-loop-frame-{index:04d}-remove-bg-a1"
+                    (jobs / f"{stem}-request.json").write_text(f'["remove-{index}"]')
+                    (jobs / f"{stem}-complete.json").write_text(complete)
+                    Image.new("RGBA", (16, 16), (255, 255, 255, 255)).save(alpha / f"{index:04d}.png")
+                call_log = temporary / "calls.txt"
+                call_log.write_text("")
                 command = (
                     "$ErrorActionPreference = 'Stop'; "
-                    f"function higgsfield {{ New-Item -ItemType File -Path '{paid_marker.as_posix()}' | Out-Null; throw 'paid call' }}; "
-                    f"function Invoke-WebRequest {{ New-Item -ItemType File -Path '{paid_marker.as_posix()}' | Out-Null; throw 'download call' }}; "
-                    "function ffmpeg { throw 'stop after runner resume checks' }; "
+                    f"$callLog = '{call_log.as_posix()}'; $frameSource = '{frame_source.as_posix()}'; "
+                    "function higgsfield { if ($args[1] -ne 'wait') { Add-Content $callLog 'create'; throw 'duplicate create' }; Add-Content $callLog 'wait'; Write-Output '{\"status\":\"completed\",\"result_url\":\"https://full.example/result\",\"min_result_url\":\"https://min.example/result\"}'; $global:LASTEXITCODE=0 }; "
+                    "function Invoke-WebRequest { Add-Content $callLog 'download'; $index = [Array]::IndexOf($args, '-OutFile'); Set-Content -Path $args[$index + 1] -Value 'downloaded'; }; "
+                    "function ffmpeg { $template = $args[$args.Count - 1]; $directory = Split-Path -Parent $template; New-Item -ItemType Directory -Force -Path $directory | Out-Null; foreach ($index in 1..16) { Copy-Item $frameSource (Join-Path $directory ('{0:D4}.png' -f $index)) }; $global:LASTEXITCODE=0 }; "
                     f"& '{(ROOT / 'scripts/assets/generate-runner.ps1').as_posix()}' -AvatarPath '{avatar.as_posix()}' -StylePath '{(ROOT / 'design/style-formula.txt').as_posix()}' "
                     f"-JobsDirectory '{jobs.as_posix()}' -AnimationRoot '{(temporary / 'animation').as_posix()}' -FramesRoot '{(temporary / 'frames').as_posix()}' "
                     f"-OutputPath '{(temporary / 'runner_run_f15_256x256_g4x4_fps16_loop.png').as_posix()}' -Attempt 1"
@@ -485,9 +504,14 @@ class SpriteToolsTest(unittest.TestCase):
                     capture_output=True,
                     check=False,
                 )
-                self.assertFalse(paid_marker.exists(), result.stdout + result.stderr)
-                self.assertEqual((jobs / "ws-run-loop-key-pose-a1-request.json").read_text(), '["flux-job"]')
-                self.assertEqual((jobs / "ws-run-loop-video-a1-request.json").read_text(), '["seedance-job"]')
+                calls = call_log.read_text().splitlines()
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertNotIn("create", calls)
+                self.assertEqual(calls.count("wait"), expected_waits)
+                self.assertEqual(calls.count("download"), expected_downloads)
+                self.assertTrue((jobs / "ws-run-loop-key-pose-a1-complete.json").exists())
+                self.assertTrue((jobs / "ws-run-loop-video-a1-complete.json").exists())
+                self.assertTrue((temporary / "runner_run_f15_256x256_g4x4_fps16_loop.png").exists())
 
     def test_background_removal_resume_skips_higgsfield_and_download_for_complete_raw_frames(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

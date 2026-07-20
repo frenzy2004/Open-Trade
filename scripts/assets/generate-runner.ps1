@@ -32,14 +32,14 @@ function Resolve-RunnerStage {
         Set-Content -Path $requestPath -Value $requestJson -NoNewline -Encoding utf8
     }
 
+    if (Test-Path $completionPath) {
+        $completeJson = Get-Content -Raw $completionPath
+    } else {
+        $jobId = Get-HiggsfieldJobId -JsonText $requestJson
+        $completeJson = higgsfield generate wait $jobId --timeout 20m --interval 5s --json
+        Set-Content -Path $completionPath -Value $completeJson -NoNewline -Encoding utf8
+    }
     if (-not (Test-Path $RawPath)) {
-        if (Test-Path $completionPath) {
-            $completeJson = Get-Content -Raw $completionPath
-        } else {
-            $jobId = Get-HiggsfieldJobId -JsonText $requestJson
-            $completeJson = higgsfield generate wait $jobId --timeout 20m --interval 5s --json
-            Set-Content -Path $completionPath -Value $completeJson -NoNewline -Encoding utf8
-        }
         $downloadUrl = Get-HiggsfieldResultUrl -JsonText $completeJson
         if (-not $downloadUrl) { throw "No raw download URL in completion for $StageName." }
         Invoke-WebRequest -Uri $downloadUrl -OutFile $RawPath
