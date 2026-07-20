@@ -19,13 +19,16 @@ export function HubPage() {
   const [, refreshProgress] = useState(0)
   const { addToast } = useToasts()
 
-  useEffect(
-    () =>
-      subscribeToGameProgress(() => {
+  useEffect(() => {
+    const unsubscribe = subscribeToGameProgress(() => {
         refreshProgress((value) => value + 1)
-      }),
-    [],
-  )
+    })
+    return () => {
+      unsubscribe()
+      resetAttemptRef.current += 1
+      resetInFlightRef.current = false
+    }
+  }, [])
 
   const cancelReset = () => {
     resetAttemptRef.current += 1

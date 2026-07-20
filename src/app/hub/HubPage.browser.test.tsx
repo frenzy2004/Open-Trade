@@ -186,3 +186,59 @@ test('cancels a pending reset on Escape without allowing its stale load to reset
   expect(window.localStorage.getItem('open-trade:game:fanstocks')).toBeNull()
   expect(loadCount).toBe(2)
 })
+
+test('invalidates a pending reset when navigation unmounts the hub', async () => {
+  let releaseLoad: () => void = () => {
+    throw new Error('Pending loader was not initialized')
+  }
+  const pendingLoad = new Promise<void>((resolve) => {
+    releaseLoad = resolve
+  })
+  const registration = getFanStocksRegistration()
+  const originalLoad = registration.load
+  let completedLoads = 0
+  let resetCalls = 0
+  vi.spyOn(registration, 'load').mockImplementation(async () => {
+    await pendingLoad
+    const module = await originalLoad()
+    completedLoads += 1
+    return {
+      ...module,
+      gameRoute: {
+        ...module.gameRoute,
+        reset: () => {
+          resetCalls += 1
+          module.gameRoute.reset()
+        },
+      },
+    }
+  })
+  window.location.hash = '#/'
+  window.localStorage.setItem('open-trade:game:fanstocks', 'saved')
+  const screen = await render(<App />)
+
+  await screen.getByRole('button', {
+    name: 'Reset FanStocks progress',
+  }).click()
+  await screen.getByRole('button', {
+    name: 'Confirm reset FanStocks',
+  }).click()
+
+  window.location.hash = '#/missing'
+  await expect.element(
+    screen.getByRole('heading', { name: 'Market not found', level: 1 }),
+  ).toBeVisible()
+
+  releaseLoad()
+  await expect.poll(() => completedLoads).toBe(1)
+  await Promise.resolve()
+  await Promise.resolve()
+  expect(resetCalls).toBe(0)
+  expect(window.localStorage.getItem('open-trade:game:fanstocks')).toBe('saved')
+  await expect.poll(() => document.body.textContent).not.toContain(
+    'FanStocks progress reset',
+  )
+  await expect.poll(() => document.body.textContent).not.toContain(
+    'FanStocks progress reset failed',
+  )
+})
