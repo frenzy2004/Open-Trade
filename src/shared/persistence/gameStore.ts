@@ -63,6 +63,67 @@ interface SaveEnvelope {
   data: unknown
 }
 
+const omittedFromJson = Symbol('omittedFromJson')
+
+function snapshotJsonData(
+  value: unknown,
+  ancestors = new WeakSet<object>(),
+): unknown | typeof omittedFromJson {
+  switch (typeof value) {
+    case 'string':
+    case 'boolean':
+      return value
+    case 'number':
+      return Number.isFinite(value) ? value : null
+    case 'undefined':
+    case 'function':
+    case 'symbol':
+      return omittedFromJson
+    case 'bigint':
+      throw new TypeError('BigInt values cannot be stored as JSON')
+    case 'object':
+      if (value === null) {
+        return null
+      }
+      if (ancestors.has(value)) {
+        throw new TypeError('Cyclic values cannot be stored as JSON')
+      }
+
+      ancestors.add(value)
+      try {
+        if (Array.isArray(value)) {
+          const length = value.length
+          const snapshot: unknown[] = new Array(length)
+          Object.setPrototypeOf(snapshot, null)
+          Object.defineProperty(snapshot, 'toJSON', { value: undefined })
+          for (let index = 0; index < length; index += 1) {
+            if (!Object.hasOwn(value, index)) {
+              snapshot[index] = null
+              continue
+            }
+            const item = snapshotJsonData(value[index], ancestors)
+            snapshot[index] = item === omittedFromJson ? null : item
+          }
+          return snapshot
+        }
+
+        const snapshot = Object.create(null) as Record<string, unknown>
+        for (const key of Object.keys(value)) {
+          const item = snapshotJsonData(
+            (value as Record<string, unknown>)[key],
+            ancestors,
+          )
+          if (item !== omittedFromJson) {
+            snapshot[key] = item
+          }
+        }
+        return snapshot
+      } finally {
+        ancestors.delete(value)
+      }
+  }
+}
+
 function getBrowserStorage(): StorageLike | null {
   try {
     return typeof localStorage === 'undefined' ? null : localStorage
@@ -146,12 +207,15 @@ export function createGameStore<T>(
 
     let serialized: string
     try {
-      const envelope: SaveEnvelope = {
-        version: codec.version,
-        savedAt: metadata.savedAt ?? now().toISOString(),
-        seed: metadata.seed ?? null,
-        data: codec.encode(value),
+      const data = snapshotJsonData(codec.encode(value))
+      if (data === omittedFromJson) {
+        return { ok: false, reason: 'encode-failed' }
       }
+      const envelope = Object.create(null) as SaveEnvelope
+      envelope.version = codec.version
+      envelope.savedAt = metadata.savedAt ?? now().toISOString()
+      envelope.seed = metadata.seed ?? null
+      envelope.data = data
       serialized = JSON.stringify(envelope)
       if (!isSaveEnvelope(JSON.parse(serialized) as unknown)) {
         return { ok: false, reason: 'encode-failed' }

@@ -179,6 +179,137 @@ describe('createGameStore', () => {
     expect(storage.getItem(codec.key)).toBeNull()
   })
 
+  it('preserves envelope metadata and data under a polluted toJSON prototype', () => {
+    const storage = new MemoryStorage()
+    const store = createGameStore(codec, { storage })
+    const originalToJSON = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'toJSON',
+    )
+    Object.defineProperty(Object.prototype, 'toJSON', {
+      configurable: true,
+      value() {
+        return {
+          version: 2,
+          savedAt: 'tampered',
+          seed: 'tampered',
+          data: 999,
+        }
+      },
+    })
+
+    try {
+      expect(
+        store.save(
+          { score: 42 },
+          { seed: 'league-77', savedAt: '2026-07-21T00:00:00.000Z' },
+        ),
+      ).toEqual({ ok: true })
+      expect(JSON.parse(storage.getItem(codec.key) ?? '')).toEqual({
+        version: 2,
+        savedAt: '2026-07-21T00:00:00.000Z',
+        seed: 'league-77',
+        data: { score: 42 },
+      })
+    } finally {
+      if (originalToJSON === undefined) {
+        delete (Object.prototype as { toJSON?: unknown }).toJSON
+      } else {
+        Object.defineProperty(Object.prototype, 'toJSON', originalToJSON)
+      }
+    }
+  })
+
+  it('preserves nested encoded objects and arrays under a polluted toJSON prototype', () => {
+    const storage = new MemoryStorage()
+    const encoded = {
+      object: { depth: 1 },
+      list: [1, 2],
+    }
+    const store = createGameStore(
+      {
+        ...codec,
+        encode: () => encoded,
+      },
+      { storage },
+    )
+    const originalToJSON = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'toJSON',
+    )
+    Object.defineProperty(Object.prototype, 'toJSON', {
+      configurable: true,
+      value(this: unknown) {
+        if (
+          typeof this === 'object' &&
+          this !== null &&
+          Object.hasOwn(this, 'version') &&
+          Object.hasOwn(this, 'savedAt') &&
+          Object.hasOwn(this, 'seed') &&
+          Object.hasOwn(this, 'data')
+        ) {
+          return this
+        }
+        if (this === encoded) {
+          return this
+        }
+        return Array.isArray(this) ? ['polluted'] : { polluted: true }
+      },
+    })
+
+    try {
+      expect(store.save({ score: 1 })).toEqual({ ok: true })
+      expect(JSON.parse(storage.getItem(codec.key) ?? '')).toMatchObject({
+        data: {
+          object: { depth: 1 },
+          list: [1, 2],
+        },
+      })
+      expect(encoded).toEqual({
+        object: { depth: 1 },
+        list: [1, 2],
+      })
+    } finally {
+      if (originalToJSON === undefined) {
+        delete (Object.prototype as { toJSON?: unknown }).toJSON
+      } else {
+        Object.defineProperty(Object.prototype, 'toJSON', originalToJSON)
+      }
+    }
+  })
+
+  it('serializes sparse arrays from their own values only', () => {
+    const storage = new MemoryStorage()
+    const list = new Array<number>(2)
+    list[1] = 2
+    const store = createGameStore(
+      {
+        ...codec,
+        encode: () => ({ list }),
+      },
+      { storage },
+    )
+    const originalZero = Object.getOwnPropertyDescriptor(Object.prototype, '0')
+    Object.defineProperty(Object.prototype, '0', {
+      configurable: true,
+      value: 'polluted',
+      writable: true,
+    })
+
+    try {
+      expect(store.save({ score: 1 })).toEqual({ ok: true })
+      expect(JSON.parse(storage.getItem(codec.key) ?? '')).toMatchObject({
+        data: { list: [null, 2] },
+      })
+    } finally {
+      if (originalZero === undefined) {
+        delete (Object.prototype as { 0?: unknown })[0]
+      } else {
+        Object.defineProperty(Object.prototype, '0', originalZero)
+      }
+    }
+  })
+
   it('converts thrown codec decoding errors into recovery-required', () => {
     const storage = new MemoryStorage()
     storage.setItem(
