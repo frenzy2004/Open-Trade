@@ -55,6 +55,40 @@ class SpriteToolsTest(unittest.TestCase):
                 self.assertEqual(sheet.size, (1024, 1024))
                 self.assertEqual(sheet.getbbox(), (115, 219, 912, 1024))
 
+    def test_assemble_sheet_removes_key_spill_but_preserves_other_alpha_art(self):
+        assemble = load_module("assemble_spritesheet", "scripts/assets/assemble_spritesheet.py")
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            frame_paths = []
+            for index in range(15):
+                frame = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+                drawing = ImageDraw.Draw(frame)
+                drawing.point((50, 30), fill=(255, 255, 255, 255))
+                drawing.point((449, 429), fill=(255, 255, 255, 255))
+                drawing.rectangle((170, 150, 220, 200), fill=(200, 20, 180, 255))
+                drawing.rectangle((230, 150, 280, 200), fill=(50, 100, 200, 128))
+                frame.putpixel((200, 180), (200, 20, 180, 128))
+                frame_path = temporary / f"frame-{index}.png"
+                frame.save(frame_path)
+                frame_paths.append(str(frame_path))
+            frame_paths.append(frame_paths[0])
+            output_path = temporary / "runner_run_f15_256x256_g4x4_fps16_loop.png"
+
+            assemble.assemble_sheet(frame_paths, str(output_path))
+
+            with Image.open(output_path) as sheet:
+                output = sheet.convert("RGBA")
+                self.assertFalse(any(
+                    0 < alpha < 255 and red > 120 and blue > 100 and min(red, blue) - green > 50
+                    for red, green, blue, alpha in output.get_flattened_data()
+                ))
+                pixels = list(output.get_flattened_data())
+                self.assertIn((200, 20, 180, 255), pixels)
+                self.assertTrue(any(
+                    0 < alpha < 255 and blue > red + 40 and blue > green + 40
+                    for red, green, blue, alpha in pixels
+                ))
+
     def test_assemble_sheet_requires_15_frames_in_a_4_by_4_grid_and_exact_filename(self):
         assemble = load_module("assemble_spritesheet", "scripts/assets/assemble_spritesheet.py")
         with tempfile.TemporaryDirectory() as temporary_directory:

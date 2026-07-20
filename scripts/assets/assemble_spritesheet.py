@@ -7,6 +7,11 @@ from pathlib import Path
 
 from PIL import Image, ImageChops
 
+try:
+    from key_spill_cleanup import remove_magenta_key_spill
+except ImportError:
+    from scripts.assets.key_spill_cleanup import remove_magenta_key_spill
+
 
 EXPECTED_FILENAME = "runner_run_f15_256x256_g4x4_fps16_loop.png"
 last_assembled_frames: list[str] = []
@@ -59,7 +64,7 @@ def assemble_sheet(
     try:
         if len(source_images) < 2 or not _images_match(source_images[0], source_images[-1]):
             raise ValueError("loop input must repeat its first frame as the final frame")
-        images = source_images[:-1]
+        images = [remove_magenta_key_spill(image) for image in source_images[:-1]]
         if len(images) != 15:
             raise ValueError("runner sheet requires 16 selected frames that reduce to 15 unique loop frames")
         bounds = _union_bounds(images)
@@ -71,7 +76,7 @@ def assemble_sheet(
             position_y = (index // columns) * cell_height + cell_height - cropped.height
             sheet.alpha_composite(cropped, (position_x, position_y))
         output.parent.mkdir(parents=True, exist_ok=True)
-        sheet.save(output, format="PNG", optimize=True)
+        remove_magenta_key_spill(sheet).save(output, format="PNG", optimize=True)
         global last_assembled_frames
         last_assembled_frames = list(frame_paths[:-1])
     finally:

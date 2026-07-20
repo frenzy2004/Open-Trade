@@ -9,6 +9,11 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 
+try:
+    from key_spill_cleanup import remove_magenta_key_spill
+except ImportError:
+    from scripts.assets.key_spill_cleanup import remove_magenta_key_spill
+
 
 LANCZOS = Image.Resampling.LANCZOS
 OFF_BLACK = (23, 21, 17, 255)
@@ -18,18 +23,6 @@ WARM_IVORY = (245, 238, 219, 255)
 def cover_crop(image: Image.Image, size: tuple[int, int]) -> Image.Image:
     """Cover-crop an image to its exact target dimensions using LANCZOS."""
     return ImageOps.fit(image.convert("RGB"), size, method=LANCZOS, centering=(0.5, 0.5))
-
-
-def remove_magenta_key_spill(image: Image.Image) -> Image.Image:
-    """Clear only partial-alpha magenta key spill without mutating the source image."""
-    cleaned = image.convert("RGBA").copy()
-    pixels = cleaned.load()
-    for y in range(cleaned.height):
-        for x in range(cleaned.width):
-            red, green, blue, alpha = pixels[x, y]
-            if 0 < alpha < 255 and red > 120 and blue > 100 and min(red, blue) - green > 50:
-                pixels[x, y] = (0, 0, 0, 0)
-    return cleaned
 
 
 def contain_alpha(image: Image.Image, size: tuple[int, int]) -> Image.Image:
