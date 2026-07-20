@@ -64,14 +64,9 @@ These values are frozen before implementation. A failed threshold is fixed in co
 
 | Measure | Threshold |
 |---|---:|
-| Music integrated loudness | -19 LUFS +/- 2 LU |
-| SFX integrated loudness (>=400 ms) | -11 LUFS +/- 3 LU |
-| Final encoded true peak | at most -3 dBFS |
-| Final audio format | 48 kHz Opus; SFX mono, music stereo |
-| Final duration | plan duration +/- 50 ms |
-| Non-silence | max volume above -60 dBFS |
-
-Sub-400 ms transient SFX are measured for duration, format, non-silence, and true peak, but not rejected by integrated-LUFS comparison: EBU R128 integrated loudness is not stable for clips shorter than its analysis window. For longer high-crest transients, the -11 LUFS check is also reported but not rejected when achieving it would exceed the -3 dBFS true-peak gate (more than 8 dB crest factor). The audio plan keeps production SFX at 500 ms or longer.
+| Music working level | -18 to -20 dBFS |
+| SFX working level | -10 to -12 dBFS |
+| Final true peak | at most -3 dBFS |
 | Playability while muted | 100% of mechanics |
 | Raw full-gain model clips in the mix | 0 |
 

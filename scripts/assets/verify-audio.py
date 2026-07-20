@@ -1,4 +1,11 @@
-"""Validate final Open Trade audio files with ffprobe and ffmpeg measurements."""
+"""Validate final Open Trade audio files with additive ffprobe/ffmpeg diagnostics.
+
+This checker does not amend the frozen release criteria in ``design/thresholds.md``.
+It adds final-file format, duration, non-silence, EBU R128, and encoded true-peak
+evidence. Integrated LUFS is unstable below 400 ms; high-crest transients cannot
+meet a -11 LUFS working target without exceeding the -3 dBFS peak cap, so those
+cases retain the non-silence and true-peak gates instead of flattening the cue.
+"""
 
 from __future__ import annotations
 
