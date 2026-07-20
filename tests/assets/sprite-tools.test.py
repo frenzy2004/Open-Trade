@@ -391,6 +391,66 @@ class SpriteToolsTest(unittest.TestCase):
             "Pillow==12.3.0\nnumpy==2.5.1\n",
         )
 
+    def test_higgsfield_response_tools_accept_exact_cli_shapes_and_prefer_result_url(self):
+        result = subprocess.run(
+            [
+                "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
+                f"Import-Module '{(ROOT / 'scripts/assets/higgsfield-job-tools.psm1').as_posix()}'; "
+                "Write-Output (Get-HiggsfieldJobId -JsonText '[\"ba919da5-687d-46c6-962c-472511ffa018\"]'); "
+                "Write-Output (Get-HiggsfieldResultUrl -JsonText '{\"status\":\"completed\",\"result_url\":\"https://full.example/result\",\"min_result_url\":\"https://min.example/result\"}'); "
+                "Write-Output (Get-HiggsfieldJobId -JsonText '{\"job_id\":\"legacy-job\"}'); "
+                "Write-Output (Get-HiggsfieldResultUrl -JsonText '{\"output\":{\"url\":\"https://legacy.example/result\"}}')",
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ["ba919da5-687d-46c6-962c-472511ffa018", "https://full.example/result", "legacy-job", "https://legacy.example/result"])
+
+    def test_static_and_audio_resume_with_complete_raw_data_without_higgsfield_calls(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            jobs = temporary / "jobs"
+            jobs.mkdir()
+            static_plan = temporary / "static-plan.json"
+            static_plan.write_text(
+                '{"styleFormulaFile":"style.txt","assets":[{"id":"static-one","kind":"background","model":"nano_banana_flash","description":"fixture","aspectRatio":"16:9","resolution":"1k","transparent":false,"width":1280,"height":720,"output":"unused.webp"}]}'
+            )
+            style_path = temporary / "style.txt"
+            style_path.write_text("fixture style")
+            audio_plan = temporary / "audio-plan.json"
+            audio_plan.write_text(
+                '{"assets":[{"id":"audio-one","model":"seed_audio","prompt":"fixture","seconds":0.7,"channels":1,"lufs":-11,"output":"unused.ogg"}]}'
+            )
+            complete = '{"status":"completed","result_url":"https://full.example/result","min_result_url":"https://min.example/result"}'
+            (jobs / "static-one-a1-request.json").write_text('["static-job"]')
+            (jobs / "static-one-a1-complete.json").write_text(complete)
+            (jobs / "audio-one-a1-request.json").write_text('["audio-job"]')
+            (jobs / "audio-one-a1-complete.json").write_text(complete)
+            static_raw = temporary / "raw/static/attempt-1"
+            audio_raw = temporary / "raw/audio/attempt-1"
+            static_raw.mkdir(parents=True)
+            audio_raw.mkdir(parents=True)
+            (static_raw / "static-one.webp").write_bytes(b"already-downloaded")
+            (audio_raw / "audio-one.wav").write_bytes(b"already-downloaded")
+            paid_marker = temporary / "paid-call-marker"
+            command = (
+                "$ErrorActionPreference = 'Stop'; "
+                f"function higgsfield {{ New-Item -ItemType File -Path '{paid_marker.as_posix()}' | Out-Null; throw 'paid call' }}; "
+                f"function Invoke-WebRequest {{ New-Item -ItemType File -Path '{paid_marker.as_posix()}' | Out-Null; throw 'download call' }}; "
+                f"& '{(ROOT / 'scripts/assets/generate-static.ps1').as_posix()}' -PlanPath '{static_plan.as_posix()}' -StylePath '{style_path.as_posix()}' -JobsDirectory '{jobs.as_posix()}' -RawDirectory '{(temporary / 'raw/static').as_posix()}' -Attempt 1; "
+                f"& '{(ROOT / 'scripts/assets/generate-audio.ps1').as_posix()}' -PlanPath '{audio_plan.as_posix()}' -JobsDirectory '{jobs.as_posix()}' -RawDirectory '{(temporary / 'raw/audio').as_posix()}' -Attempt 1"
+            )
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(paid_marker.exists(), "resume path attempted a Higgsfield create/wait or raw download")
+
 
 if __name__ == "__main__":
     unittest.main()

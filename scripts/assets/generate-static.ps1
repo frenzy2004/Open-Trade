@@ -9,6 +9,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 if ($Attempt -ne 1 -and $Attempt -ne 2) { throw 'Attempt must be 1 or 2.' }
+Import-Module (Join-Path $PSScriptRoot 'higgsfield-job-tools.psm1') -Force
 $templates = @{
     background = 'game background of {0}, wide establishing view, '
     sprite = 'game sprite of {0}, single character/object, full body visible, centered, '
@@ -18,26 +19,6 @@ $suffixes = @{
     background = ', no characters, no UI elements, slightly muted detail so foreground game elements stay readable, soft depth layering'
     sprite = ', on a solid uniform bright magenta #FF00FF background, no shadows cast on the background, no ground plane, nothing cropped at the edges'
     ui = ', no letters, no words, no numerals, on a solid uniform bright magenta #FF00FF background, crisp edges, no drop shadow outside the element'
-}
-
-function Get-JobId([object]$Response) {
-    foreach ($name in @('jobId', 'job_id', 'id')) {
-        if ($Response.PSObject.Properties.Name -contains $name -and $Response.$name) { return [string]$Response.$name }
-    }
-    throw 'Higgsfield response did not contain a job ID.'
-}
-
-function Get-DownloadUrl([object]$Response) {
-    foreach ($name in @('download_url', 'downloadUrl', 'url')) {
-        if ($Response.PSObject.Properties.Name -contains $name -and $Response.$name) { return [string]$Response.$name }
-    }
-    foreach ($name in @('output', 'result', 'data')) {
-        if ($Response.PSObject.Properties.Name -contains $name -and $Response.$name) {
-            $url = Get-DownloadUrl $Response.$name
-            if ($url) { return $url }
-        }
-    }
-    return $null
 }
 
 $attemptRawDirectory = Join-Path $RawDirectory "attempt-$Attempt"
@@ -54,17 +35,29 @@ $submissions = foreach ($asset in $plan.assets) {
         '--resolution',$asset.resolution,
         '--json'
     )
-    $requestJson = & higgsfield @args
     $requestPath = Join-Path $JobsDirectory "$($asset.id)-a$Attempt-request.json"
-    Set-Content -Path $requestPath -Value $requestJson -NoNewline -Encoding utf8
-    [pscustomobject]@{ Asset = $asset; JobId = Get-JobId ($requestJson | ConvertFrom-Json) }
+    if (Test-Path $requestPath) {
+        $requestJson = Get-Content -Raw $requestPath
+    } else {
+        $requestJson = & higgsfield @args
+        Set-Content -Path $requestPath -Value $requestJson -NoNewline -Encoding utf8
+    }
+    [pscustomobject]@{ Asset = $asset; JobId = Get-HiggsfieldJobId -JsonText $requestJson }
 }
 
 foreach ($submission in $submissions) {
-    $completeJson = higgsfield generate wait $submission.JobId --timeout 20m --interval 5s --json
-    Set-Content -Path (Join-Path $JobsDirectory "$($submission.Asset.id)-a$Attempt-complete.json") -Value $completeJson -NoNewline -Encoding utf8
-    $downloadUrl = Get-DownloadUrl ($completeJson | ConvertFrom-Json)
-    if (-not $downloadUrl) { throw "No raw download URL in completion for $($submission.Asset.id)." }
     $extension = if ($submission.Asset.transparent) { '.png' } else { '.webp' }
-    Invoke-WebRequest -Uri $downloadUrl -OutFile (Join-Path $attemptRawDirectory "$($submission.Asset.id)$extension")
+    $rawPath = Join-Path $attemptRawDirectory "$($submission.Asset.id)$extension"
+    $completePath = Join-Path $JobsDirectory "$($submission.Asset.id)-a$Attempt-complete.json"
+    if (Test-Path $completePath) {
+        $completeJson = Get-Content -Raw $completePath
+    } else {
+        $completeJson = higgsfield generate wait $submission.JobId --timeout 20m --interval 5s --json
+        Set-Content -Path $completePath -Value $completeJson -NoNewline -Encoding utf8
+    }
+    if (-not (Test-Path $rawPath)) {
+        $downloadUrl = Get-HiggsfieldResultUrl -JsonText $completeJson
+        if (-not $downloadUrl) { throw "No raw download URL in completion for $($submission.Asset.id)." }
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $rawPath
+    }
 }

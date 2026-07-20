@@ -76,3 +76,9 @@ Date: 2026-07-21
 - Build readable labels and accessible equivalents for every color/gesture-only signal.
 - Use original Higgsfield assets and original source code rather than copying public-site assets or bundles.
 
+### Higgsfield CLI JSON contract and resumability
+
+- Failure: initial media tooling assumed an object-shaped create response and generic download URL fields. The actual create response is a top-level one-item JSON array containing the job ID; completed jobs expose `status: "completed"`, `result_url`, and `min_result_url`.
+- Evidence: completed static job `ba919da5-687d-46c6-962c-472511ffa018` (`fs-draft-room`) and audio job `27d8d267-62a9-4e03-a61f-d45ff5a0c095` (`ui-confirm`) were returned as one-item request arrays.
+- Recovery: use the shared parser for both exact array and legacy object shapes, prefer the full `result_url` exclusively over `min_result_url`, and preserve attempt-specific request/completion files.
+- Rule: before creating, waiting, or downloading any job, reuse an existing attempt-specific request, completion, and raw file when present. Submit only missing requests before the wait phase; never overwrite or re-submit a resumable attempt.

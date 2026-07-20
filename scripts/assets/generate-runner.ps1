@@ -12,31 +12,12 @@ param(
 $ErrorActionPreference = 'Stop'
 if ($Attempt -ne 1 -and $Attempt -ne 2) { throw 'Attempt must be 1 or 2.' }
 Import-Module (Join-Path $PSScriptRoot 'runner-tools.psm1') -Force
-
-function Get-JobId([object]$Response) {
-    foreach ($name in @('jobId', 'job_id', 'id')) {
-        if ($Response.PSObject.Properties.Name -contains $name -and $Response.$name) { return [string]$Response.$name }
-    }
-    throw 'Higgsfield response did not contain a job ID.'
-}
-
-function Get-DownloadUrl([object]$Response) {
-    foreach ($name in @('download_url', 'downloadUrl', 'url')) {
-        if ($Response.PSObject.Properties.Name -contains $name -and $Response.$name) { return [string]$Response.$name }
-    }
-    foreach ($name in @('output', 'result', 'data')) {
-        if ($Response.PSObject.Properties.Name -contains $name -and $Response.$name) {
-            $url = Get-DownloadUrl $Response.$name
-            if ($url) { return $url }
-        }
-    }
-    return $null
-}
+Import-Module (Join-Path $PSScriptRoot 'higgsfield-job-tools.psm1') -Force
 
 function Wait-And-Download([string]$JobId, [string]$CompletionPath, [string]$RawPath) {
     $completeJson = higgsfield generate wait $JobId --timeout 20m --interval 5s --json
     Set-Content -Path $CompletionPath -Value $completeJson -NoNewline -Encoding utf8
-    $downloadUrl = Get-DownloadUrl ($completeJson | ConvertFrom-Json)
+    $downloadUrl = Get-HiggsfieldResultUrl -JsonText $completeJson
     if (-not $downloadUrl) { throw "No raw download URL in completion for $JobId." }
     Invoke-WebRequest -Uri $downloadUrl -OutFile $RawPath
 }
@@ -51,13 +32,13 @@ $keyPosePrompt = "$style Original scrappy market runner at the peak of a forward
 $keyPoseRequest = higgsfield generate create flux_2 --image $AvatarPath --prompt $keyPosePrompt --aspect_ratio 1:1 --resolution 1k --json
 Set-Content -Path (Join-Path $JobsDirectory "ws-run-loop-key-pose-a$Attempt-request.json") -Value $keyPoseRequest -NoNewline -Encoding utf8
 $keyPosePath = Join-Path $attemptAnimationRoot 'run-pose.png'
-Wait-And-Download (Get-JobId ($keyPoseRequest | ConvertFrom-Json)) (Join-Path $JobsDirectory "ws-run-loop-key-pose-a$Attempt-complete.json") $keyPosePath
+Wait-And-Download (Get-HiggsfieldJobId -JsonText $keyPoseRequest) (Join-Path $JobsDirectory "ws-run-loop-key-pose-a$Attempt-complete.json") $keyPosePath
 
 $videoPrompt = New-RunnerVideoPrompt -StyleFormula $style
 $videoRequest = higgsfield generate create seedance1_5 --start-image $keyPosePath --end-image $keyPosePath --prompt $videoPrompt --duration 4 --resolution 720p --aspect_ratio 1:1 --generate_audio false --json
 Set-Content -Path (Join-Path $JobsDirectory "ws-run-loop-video-a$Attempt-request.json") -Value $videoRequest -NoNewline -Encoding utf8
 $videoPath = Join-Path $attemptAnimationRoot 'run.mp4'
-Wait-And-Download (Get-JobId ($videoRequest | ConvertFrom-Json)) (Join-Path $JobsDirectory "ws-run-loop-video-a$Attempt-complete.json") $videoPath
+Wait-And-Download (Get-HiggsfieldJobId -JsonText $videoRequest) (Join-Path $JobsDirectory "ws-run-loop-video-a$Attempt-complete.json") $videoPath
 
 $rawFrames = Join-Path $attemptFramesRoot 'raw'
 $selectedFrames = Join-Path $attemptFramesRoot 'selected'
