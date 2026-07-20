@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createGameStore,
   type GameSaveCodec,
+  type GameSaveDecodeResult,
   type StorageLike,
 } from './gameStore'
 
@@ -195,6 +196,75 @@ describe('createGameStore', () => {
         decode: () => {
           throw new Error('unexpected codec failure')
         },
+      },
+      { storage },
+    )
+
+    expect(store.load()).toMatchObject({
+      status: 'recovery-required',
+      reason: 'corrupt',
+      detail: 'Saved data could not be decoded',
+    })
+  })
+
+  it('rejects an envelope whose data exists only on Object.prototype', () => {
+    const storage = new MemoryStorage()
+    storage.setItem(
+      codec.key,
+      JSON.stringify({
+        version: 2,
+        savedAt: '2026-07-21T00:00:00.000Z',
+        seed: null,
+      }),
+    )
+    Object.defineProperty(Object.prototype, 'data', {
+      configurable: true,
+      value: { score: 42 },
+    })
+
+    try {
+      const storeWithUndefinedEncoding = createGameStore(
+        {
+          ...codec,
+          encode: () => undefined,
+        },
+        { storage },
+      )
+      expect(storeWithUndefinedEncoding.save({ score: 1 })).toEqual({
+        ok: false,
+        reason: 'encode-failed',
+      })
+      expect(createGameStore(codec, { storage }).load()).toMatchObject({
+        status: 'recovery-required',
+        reason: 'corrupt',
+        detail: 'Saved envelope is malformed',
+      })
+    } finally {
+      delete (Object.prototype as { data?: unknown }).data
+    }
+  })
+
+  it.each([
+    undefined,
+    {},
+    { ok: false },
+    { ok: false, reason: 1 },
+    { ok: true },
+  ])('rejects invalid runtime decode result %#', (invalidResult) => {
+    const storage = new MemoryStorage()
+    storage.setItem(
+      codec.key,
+      JSON.stringify({
+        version: 2,
+        savedAt: '2026-07-21T00:00:00.000Z',
+        seed: null,
+        data: { score: 1 },
+      }),
+    )
+    const store = createGameStore(
+      {
+        ...codec,
+        decode: () => invalidResult as GameSaveDecodeResult<DemoState>,
       },
       { storage },
     )

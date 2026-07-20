@@ -76,16 +76,34 @@ function isSaveEnvelope(value: unknown): value is SaveEnvelope {
     return false
   }
 
+  const envelope = value as Record<string, unknown>
   return (
-    'version' in value &&
-    typeof value.version === 'number' &&
-    Number.isInteger(value.version) &&
-    'savedAt' in value &&
-    typeof value.savedAt === 'string' &&
-    'seed' in value &&
-    (value.seed === null || typeof value.seed === 'string') &&
-    'data' in value
+    Object.hasOwn(envelope, 'version') &&
+    typeof envelope.version === 'number' &&
+    Number.isInteger(envelope.version) &&
+    Object.hasOwn(envelope, 'savedAt') &&
+    typeof envelope.savedAt === 'string' &&
+    Object.hasOwn(envelope, 'seed') &&
+    (envelope.seed === null || typeof envelope.seed === 'string') &&
+    Object.hasOwn(envelope, 'data')
   )
+}
+
+function isGameSaveDecodeResult<T>(
+  value: unknown,
+): value is GameSaveDecodeResult<T> {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+
+  const result = value as Record<string, unknown>
+  if (!Object.hasOwn(result, 'ok') || typeof result.ok !== 'boolean') {
+    return false
+  }
+
+  return result.ok
+    ? Object.hasOwn(result, 'value')
+    : Object.hasOwn(result, 'reason') && typeof result.reason === 'string'
 }
 
 function recovery(
@@ -203,7 +221,11 @@ export function createGameStore<T>(
 
       let decoded: GameSaveDecodeResult<T>
       try {
-        decoded = codec.decode(data)
+        const result = codec.decode(data)
+        if (!isGameSaveDecodeResult<T>(result)) {
+          return recovery('corrupt', 'Saved data could not be decoded')
+        }
+        decoded = result
       } catch {
         return recovery('corrupt', 'Saved data could not be decoded')
       }
