@@ -10,8 +10,12 @@ interface RouteErrorBoundaryState {
   readonly error: Error | null
 }
 
+interface RouteErrorBoundaryProps extends PropsWithChildren<object> {
+  readonly onRetry?: () => void
+}
+
 export class RouteErrorBoundary extends Component<
-  PropsWithChildren<object>,
+  RouteErrorBoundaryProps,
   RouteErrorBoundaryState
 > {
   state: RouteErrorBoundaryState = { error: null }
@@ -35,7 +39,12 @@ export class RouteErrorBoundary extends Component<
         <h1>This game hit a snag</h1>
         <p>Your saved progress is still in this browser.</p>
         <div className="route-error__actions">
-          <Button onClick={() => this.setState({ error: null })}>
+          <Button
+            onClick={() => {
+              this.props.onRetry?.()
+              this.setState({ error: null })
+            }}
+          >
             Try again
           </Button>
           <a className="ui-button ui-button--secondary" href="#/">
