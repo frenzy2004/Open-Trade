@@ -1,6 +1,10 @@
 /* eslint-disable react-refresh/only-export-components */
 
 import { FOUNDER_MODE_METADATA } from '../../app/routes/metadata'
+import {
+  readGameProgress,
+  resetGameProgress,
+} from '../../app/routes/progressStore'
 import type { GameRouteModule } from '../../app/routes/types'
 import { clearStoredGame } from '../../shared/persistence/gameStore'
 import { parseChallenge } from '../../shared/routing/challenge'
@@ -18,11 +22,8 @@ export const gameRoute: GameRouteModule = {
   saveKey: SAVE_KEY,
   reset: () => {
     clearStoredGame(SAVE_KEY)
+    resetGameProgress('founder-mode')
   },
-  getProgressBadge: () => ({
-    label: 'Founder streak',
-    value: '0 days',
-    tone: 'neutral',
-  }),
+  getProgressBadge: () => readGameProgress('founder-mode'),
   parseChallenge,
 }

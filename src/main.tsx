@@ -5,6 +5,7 @@ import './styles/global.css'
 import './shared/ui/ui.css'
 import './shared/settings/settings.css'
 import './app/app-shell.css'
+import './app/hub/hub.css'
 
 const rootElement = document.getElementById('root')
 

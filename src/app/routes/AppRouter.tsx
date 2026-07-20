@@ -1,6 +1,6 @@
 import { Route, Routes } from 'react-router-dom'
 import { AppShell } from '../AppShell'
-import { HubFoundationPage } from '../hub/HubFoundationPage'
+import { HubPage } from '../hub/HubPage'
 import { LazyGameRoute } from './LazyGameRoute'
 import { GAME_ROUTES } from './registry'
 
@@ -19,7 +19,7 @@ export function AppRouter() {
   return (
     <Routes>
       <Route element={<AppShell />}>
-        <Route index element={<HubFoundationPage />} />
+        <Route index element={<HubPage />} />
         {GAME_ROUTES.map((registration) => (
           <Route
             key={registration.metadata.id}
