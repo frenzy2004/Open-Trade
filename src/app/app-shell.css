@@ -1,0 +1,109 @@
+.skip-link {
+  position: fixed;
+  z-index: 100;
+  top: var(--space-3);
+  left: var(--space-3);
+  padding: var(--space-3);
+  transform: translateY(-200%);
+  border: 2px solid var(--color-ink);
+  border-radius: var(--radius-sm);
+  background: var(--color-market-yellow);
+  font-weight: 800;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.app-header,
+.app-footer {
+  width: min(100% - 2rem, 78rem);
+  margin-inline: auto;
+}
+
+.app-header {
+  display: flex;
+  min-height: 76px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-block: var(--space-4);
+}
+
+.app-brand {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 4vw, 2.1rem);
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.app-main {
+  width: min(100% - 2rem, 78rem);
+  min-height: calc(100vh - 15rem);
+  margin-inline: auto;
+  padding-block: var(--space-6) var(--space-7);
+}
+
+.app-main:focus {
+  outline: none;
+}
+
+.app-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block: var(--space-5);
+  border-top: 1px solid var(--color-line);
+  color: var(--color-ink-muted);
+  font-size: 0.875rem;
+}
+
+.hub-foundation,
+.game-foundation,
+.route-error {
+  max-width: 48rem;
+}
+
+.hub-foundation h1,
+.game-foundation h1,
+.route-error h1 {
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 8vw, 5.5rem);
+  line-height: 0.95;
+}
+
+.hub-foundation__eyebrow,
+.game-foundation__eyebrow,
+.route-error__eyebrow {
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.game-foundation__status {
+  padding: var(--space-4);
+  border-left: 0.5rem solid var(--color-market-yellow);
+  background: var(--color-paper);
+}
+
+.route-error__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.route-error__actions a {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.text-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  font-weight: 850;
+  text-decoration-thickness: 0.15em;
+  text-underline-offset: 0.2em;
+}

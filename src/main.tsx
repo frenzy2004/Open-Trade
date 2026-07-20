@@ -4,6 +4,7 @@ import { App } from './app/App'
 import './styles/global.css'
 import './shared/ui/ui.css'
 import './shared/settings/settings.css'
+import './app/app-shell.css'
 
 const rootElement = document.getElementById('root')
 
