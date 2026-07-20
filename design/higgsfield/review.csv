@@ -1,1 +1,17 @@
 id,stage,attempt,model,accepted,inspection,compensation
+fs-draft-room,final,1,nano_banana_flash,true,original-detail visual QA passed,none
+fm-boardroom,final,1,nano_banana_flash,true,original-detail visual QA passed,none
+ws-runner-street,final,1,nano_banana_flash,true,original-detail visual QA passed,none
+ws-runner-avatar,final,1,nano_banana_flash,true,full-resolution alpha composite QA passed,key-spill cleanup
+ws-train,final,1,nano_banana_flash,true,full-resolution alpha composite QA passed,key-spill cleanup
+ws-barrier,final,1,nano_banana_flash,true,full-resolution alpha composite QA passed,key-spill cleanup
+ws-long-arrow,final,1,nano_banana_flash,true,full-resolution alpha composite QA passed,key-spill cleanup
+ws-short-arrow,final,1,nano_banana_flash,true,full-resolution alpha composite QA passed,key-spill cleanup
+ws-coin,final,1,nano_banana_flash,true,full-resolution and small-icon QA passed,key-spill cleanup
+ui-confirm,final,1,seed_audio,true,duration codec and waveform probe passed,trim mono and loudness normalize
+market-success,final,1,seed_audio,true,duration codec and waveform probe passed,trim mono and loudness normalize
+market-failure,final,1,seed_audio,true,duration codec and waveform probe passed,trim mono and loudness normalize
+coin-pickup,final,1,seed_audio,true,duration codec and waveform probe passed,trim mono and loudness normalize
+collision,final,1,seed_audio,true,duration codec and waveform probe passed,trim mono and loudness normalize
+arcade-loop,final,1,sonilo_music,true,duration codec and channel probe passed,container sniff trim stereo and loudness normalize
+ws-run-loop,final,1,flux_2+seedance1_5,true,key pose and 15-frame loop contact QA passed,key-spill cleanup and duplicate endpoint

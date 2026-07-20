@@ -1,0 +1,10 @@
+﻿{
+    "sourceFrames":  16,
+    "outputFrames":  15,
+    "cellSize":  "256x256",
+    "grid":  "4x4",
+    "fps":  16,
+    "loop":  true,
+    "output":  "src/assets/generated/wallstreet-surfers/runner_run_f15_256x256_g4x4_fps16_loop.png",
+    "attempt":  1
+}
