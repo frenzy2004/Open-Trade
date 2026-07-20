@@ -1,7 +1,7 @@
 # OpenTrade three-game rebuild design
 
-Date: 2026-07-21  
-Status: Approved by delegated product judgment  
+Date: 2026-07-21
+Status: Approved by delegated product judgment
 Repository: `frenzy2004/Open-Trade`
 
 ## 1. Product intent
@@ -45,14 +45,14 @@ Trade-off: the runner adapter must cleanly mount and destroy Phaser on route cha
 
 Use React for the application and a hand-written Canvas 2D runner.
 
-Advantages: lower dependency weight and full rendering control.  
+Advantages: lower dependency weight and full rendering control.
 Trade-off: the project would own collision, object pooling, scaling, touch gestures, pause/resume, audio timing, and fixed-timestep correctness. That work does not improve the product enough to justify the risk.
 
 ### Option C — Phaser-first application
 
 Implement the hub and every game as Phaser scenes with DOM overlays.
 
-Advantages: one rendering and transition system.  
+Advantages: one rendering and transition system.
 Trade-off: weaker semantic text, keyboard navigation, screen-reader behavior, responsive document layout, and component testing. This conflicts with the observed text density of FanStocks and Founder Mode.
 
 ## 4. Technical structure
@@ -215,7 +215,7 @@ Each episode contains original writing grounded in primary or reputable historic
 
 Higgsfield will produce original assets under one shared style formula. The formula is fixed before any generation and repeated byte-for-byte in every visual prompt:
 
-> High-contrast editorial finance arcade art combining cinematic collage, hand-inked contours, subtle risograph grain, dramatic perspective, and clean geometric silhouettes. Use an off-black and warm-ivory foundation with electric market-yellow, signal-red, and gain-green accents. Characters are original, expressive market archetypes rather than existing meme or brand mascots. Lighting uses warm rim highlights and deep graphic shadows. Keep backgrounds readable behind interface overlays, avoid embedded text, logos, watermarks, tiny details, and photorealistic clutter.
+> High-contrast editorial finance arcade art combining cinematic collage, hand-inked contours, subtle risograph grain, and clean geometric silhouettes. Use off-black and warm-ivory environments; original market-archetype characters contrast in electric market-yellow, signal-red, and gain-green accents. Lighting uses warm rim highlights and deep graphic shadows. Keep interface illustrations flat-frontal, and runner scenes in a consistent forward-facing one-point perspective. Preserve readable silhouettes and muted background detail, with no embedded text, logos, watermarks, tiny details, or photorealistic clutter.
 
 Game-specific treatments stay inside that shared system:
 
@@ -298,4 +298,3 @@ Milestone commits remain independently buildable and reviewable:
 9. GitHub Pages deployment and Higgsfield game deployment.
 
 Public marketplace publication is excluded unless separately requested. A draft pull request may be opened after the implementation branch is pushed.
-
