@@ -96,3 +96,10 @@ Date: 2026-07-21
 - Evidence: the fringe pixels were partial-alpha and matched `r > 120`, `b > 100`, and `min(r, b) - g > 50`; opaque magenta artwork and nonmagenta translucent pixels did not match the defect.
 - Recovery: `process-images.py` clears matching pixels to transparent black before LANCZOS scaling and again on the final canvas, preventing resampling from retaining or reintroducing the fringe without changing raw originals.
 - Rule: shipped transparent PNG validation rejects any remaining partial-alpha pixel that matches the key-spill signature.
+
+### Final audio normalization and container sniffing
+
+- Failure: final QA measured silent/near-silent SFX, shortened padded clips, and encoded true peaks above the -3 dBFS release gate. Sonilo downloads can carry AAC/M4A data under a `.wav` filename, while Seed Audio downloads are stereo RIFF.
+- Evidence: `coin-pickup` measured -104.8 dBFS true peak; `ui-confirm` and `coin-pickup` integrated near -70 LUFS; `market-failure`, `market-success`, and `collision` reached -0.4/-0.4/-0.0 dBFS; `atrim` alone ended `ui-confirm` and failure clips early.
+- Recovery: let ffmpeg probe the actual input bytes, trim then `apad` to the plan duration, normalize to the plan target, and use a conservative final limiter. Validate the encoded Ogg with ffprobe plus ffmpeg `volumedetect` and EBU R128 output for format, duration, non-silence, true peak, and integrated loudness.
+- Rule: do not reject integrated LUFS for clips shorter than 400 ms; it is not stable over EBU R128's analysis window. For longer high-crest transients, retain non-silence and true-peak gates rather than force -11 LUFS when that would exceed the -3 dBFS cap; production SFX remain 500 ms or longer and are normalized toward the target within that headroom.

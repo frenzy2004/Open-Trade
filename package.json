@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check:assets": "node scripts/assets/validate-assets.mjs"
+    "check:assets": "node scripts/assets/validate-assets.mjs",
+    "check:audio": "python scripts/assets/verify-audio.py"
   }
 }

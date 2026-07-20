@@ -447,7 +447,9 @@ class SpriteToolsTest(unittest.TestCase):
             review_path.write_text("\n".join(review_rows) + "\n")
             marker = temporary / "ffmpeg-inputs.txt"
             command = (
-                f"function ffmpeg {{ Add-Content -Path '{marker.as_posix()}' -Value ($args -join '|'); $global:LASTEXITCODE=0 }}; "
+                f"function ffmpeg {{ Add-Content -Path '{marker.as_posix()}' -Value ($args -join '|'); "
+                "if (($args -join '|') -match 'print_format=json') { Write-Output '{\"input_i\":\"-20\",\"input_lra\":\"1\",\"input_tp\":\"-6\",\"input_thresh\":\"-30\",\"target_offset\":\"0\"}' }; "
+                "$global:LASTEXITCODE=0 }; "
                 f"& '{(ROOT / 'scripts/assets/normalize-audio.ps1').as_posix()}' -PlanPath '{plan_path.as_posix()}' "
                 f"-RawDirectory '{raw_root.as_posix()}' -ReviewPath '{review_path.as_posix()}'"
             )
@@ -463,6 +465,214 @@ class SpriteToolsTest(unittest.TestCase):
             for expected_input in expected_inputs:
                 self.assertIn(str(expected_input), calls)
             self.assertNotIn(str(raw_root / "attempt-1/arcade-loop.wav"), calls)
+
+    def test_normalize_audio_decodes_mislabeled_m4a_and_pads_short_sfx(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            plan_path = temporary / "audio-plan.json"
+            plan_path.write_text(json.dumps({"assets": [{
+                "id": "ui-confirm", "model": "seed_audio", "seconds": 0.7,
+                "channels": 1, "lufs": -11, "output": "output/ui-confirm.ogg",
+            }]}))
+            review_path = temporary / "review.csv"
+            review_path.write_text("id,stage,attempt,model,accepted,inspection,compensation\nui-confirm,final,1,test,true,fixture,none\n")
+            raw = temporary / "raw/attempt-1/ui-confirm.wav"
+            raw.parent.mkdir(parents=True)
+            generated = subprocess.run(
+                [
+                    "ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
+                    "sine=frequency=880:sample_rate=44100:duration=0.5", "-ac", "2", "-c:a", "aac",
+                    "-f", "mp4", str(raw),
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(generated.returncode, 0, generated.stderr)
+            result = subprocess.run(
+                [
+                    "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                    str(ROOT / "scripts/assets/normalize-audio.ps1"), "-PlanPath", str(plan_path),
+                    "-RawDirectory", str(temporary / "raw"), "-ReviewPath", str(review_path),
+                ],
+                text=True,
+                capture_output=True,
+                cwd=temporary,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            verification = subprocess.run(
+                [
+                    "python", str(ROOT / "scripts/assets/verify-audio.py"), "--plan", str(plan_path),
+                    "--root", str(temporary), "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(verification.returncode, 0, verification.stderr + verification.stdout)
+            measured = json.loads(verification.stdout)["assets"][0]
+            self.assertEqual((measured["codec"], measured["sampleRate"], measured["channels"]), ("opus", 48000, 1))
+            self.assertAlmostEqual(measured["duration"], 0.7, delta=0.05)
+            self.assertGreater(measured["maxVolume"], -60)
+            self.assertLessEqual(measured["truePeak"], -3)
+
+    def test_verify_audio_rejects_silent_wrong_codec_fixture(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            plan_path = temporary / "audio-plan.json"
+            plan_path.write_text(json.dumps({"assets": [{
+                "id": "ui-confirm", "model": "seed_audio", "seconds": 0.7,
+                "channels": 1, "lufs": -11, "output": "output/ui-confirm.ogg",
+            }]}))
+            output = temporary / "output/ui-confirm.ogg"
+            output.parent.mkdir(parents=True)
+            generated = subprocess.run(
+                ["ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono:d=0.7", "-c:a", "libvorbis", str(output)],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(generated.returncode, 0, generated.stderr)
+            result = subprocess.run(
+                ["python", str(ROOT / "scripts/assets/verify-audio.py"), "--plan", str(plan_path), "--root", str(temporary), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertTrue(result.stdout, result.stderr)
+            errors = json.loads(result.stdout)["errors"]
+            self.assertIn("ui-confirm codec must be opus; found vorbis", errors)
+            self.assertTrue(any("ui-confirm is effectively silent" in error for error in errors))
+
+    def test_normalize_audio_keeps_sub_400ms_transient_audible(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            plan_path = temporary / "audio-plan.json"
+            plan_path.write_text(json.dumps({"assets": [{
+                "id": "coin-pickup", "model": "seed_audio", "seconds": 0.3,
+                "channels": 1, "lufs": -11, "output": "output/coin-pickup.ogg",
+            }]}))
+            review_path = temporary / "review.csv"
+            review_path.write_text("id,stage,attempt,model,accepted,inspection,compensation\ncoin-pickup,final,1,test,true,fixture,none\n")
+            raw = temporary / "raw/attempt-1/coin-pickup.wav"
+            raw.parent.mkdir(parents=True)
+            generated = subprocess.run(
+                ["ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "anoisesrc=d=0.02:r=48000:a=0.8", str(raw)],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(generated.returncode, 0, generated.stderr)
+            normalized = subprocess.run(
+                [
+                    "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                    str(ROOT / "scripts/assets/normalize-audio.ps1"), "-PlanPath", str(plan_path),
+                    "-RawDirectory", str(temporary / "raw"), "-ReviewPath", str(review_path),
+                ],
+                text=True,
+                capture_output=True,
+                cwd=temporary,
+                check=False,
+            )
+            self.assertEqual(normalized.returncode, 0, normalized.stderr)
+            verification = subprocess.run(
+                ["python", str(ROOT / "scripts/assets/verify-audio.py"), "--plan", str(plan_path), "--root", str(temporary), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(verification.returncode, 0, verification.stderr + verification.stdout)
+            measured = json.loads(verification.stdout)["assets"][0]
+            self.assertGreater(measured["maxVolume"], -60)
+            self.assertLessEqual(measured["truePeak"], -3)
+
+    def test_normalize_audio_outputs_stereo_music_near_its_loudness_target(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            plan_path = temporary / "audio-plan.json"
+            plan_path.write_text(json.dumps({"assets": [{
+                "id": "arcade-loop", "model": "sonilo_music", "seconds": 1.2,
+                "channels": 2, "lufs": -19, "output": "output/arcade-loop.ogg",
+            }]}))
+            review_path = temporary / "review.csv"
+            review_path.write_text("id,stage,attempt,model,accepted,inspection,compensation\narcade-loop,final,1,test,true,fixture,none\n")
+            raw = temporary / "raw/attempt-1/arcade-loop.wav"
+            raw.parent.mkdir(parents=True)
+            generated = subprocess.run(
+                ["ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=220:duration=1:sample_rate=44100", "-ac", "2", str(raw)],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(generated.returncode, 0, generated.stderr)
+            normalized = subprocess.run(
+                [
+                    "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                    str(ROOT / "scripts/assets/normalize-audio.ps1"), "-PlanPath", str(plan_path),
+                    "-RawDirectory", str(temporary / "raw"), "-ReviewPath", str(review_path),
+                ],
+                text=True,
+                capture_output=True,
+                cwd=temporary,
+                check=False,
+            )
+            self.assertEqual(normalized.returncode, 0, normalized.stderr)
+            verification = subprocess.run(
+                ["python", str(ROOT / "scripts/assets/verify-audio.py"), "--plan", str(plan_path), "--root", str(temporary), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(verification.returncode, 0, verification.stderr + verification.stdout)
+            measured = json.loads(verification.stdout)["assets"][0]
+            self.assertEqual((measured["codec"], measured["sampleRate"], measured["channels"]), ("opus", 48000, 2))
+            self.assertAlmostEqual(measured["duration"], 1.2, delta=0.05)
+            self.assertAlmostEqual(measured["loudness"], -19, delta=2)
+
+    def test_normalize_audio_keeps_an_sfx_that_starts_after_its_target_window(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            plan_path = temporary / "audio-plan.json"
+            plan_path.write_text(json.dumps({"assets": [{
+                "id": "coin-pickup", "model": "seed_audio", "seconds": 0.5,
+                "channels": 1, "lufs": -11, "output": "output/coin-pickup.ogg",
+            }]}))
+            review_path = temporary / "review.csv"
+            review_path.write_text("id,stage,attempt,model,accepted,inspection,compensation\ncoin-pickup,final,1,test,true,fixture,none\n")
+            raw = temporary / "raw/attempt-1/coin-pickup.wav"
+            raw.parent.mkdir(parents=True)
+            generated = subprocess.run(
+                [
+                    "ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
+                    "sine=frequency=880:duration=0.2,adelay=600", str(raw),
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(generated.returncode, 0, generated.stderr)
+            normalized = subprocess.run(
+                [
+                    "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                    str(ROOT / "scripts/assets/normalize-audio.ps1"), "-PlanPath", str(plan_path),
+                    "-RawDirectory", str(temporary / "raw"), "-ReviewPath", str(review_path),
+                ],
+                text=True,
+                capture_output=True,
+                cwd=temporary,
+                check=False,
+            )
+            self.assertEqual(normalized.returncode, 0, normalized.stderr)
+            verification = subprocess.run(
+                ["python", str(ROOT / "scripts/assets/verify-audio.py"), "--plan", str(plan_path), "--root", str(temporary), "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(verification.returncode, 0, verification.stderr + verification.stdout)
+            self.assertGreater(json.loads(verification.stdout)["assets"][0]["maxVolume"], -60)
 
     def test_asset_runtime_requirements_are_pinned(self):
         self.assertEqual(
