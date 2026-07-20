@@ -1,7 +1,6 @@
 import {
   lazy,
   Suspense,
-  useState,
   type ComponentType,
   type LazyExoticComponent,
 } from 'react'
@@ -10,26 +9,15 @@ import type { GameRouteRegistration } from './types'
 
 export interface LazyGameRouteProps {
   readonly registration: GameRouteRegistration
+  readonly reload?: () => void
 }
 
 type LazyGameEntry = LazyExoticComponent<ComponentType>
 
-const lazyEntries = new WeakMap<
-  GameRouteRegistration,
-  Map<number, LazyGameEntry>
->()
+const lazyEntries = new WeakMap<GameRouteRegistration, LazyGameEntry>()
 
-function getLazyEntry(
-  registration: GameRouteRegistration,
-  attempt: number,
-): LazyGameEntry {
-  let attempts = lazyEntries.get(registration)
-  if (attempts === undefined) {
-    attempts = new Map()
-    lazyEntries.set(registration, attempts)
-  }
-
-  const existingEntry = attempts.get(attempt)
+function getLazyEntry(registration: GameRouteRegistration): LazyGameEntry {
+  const existingEntry = lazyEntries.get(registration)
   if (existingEntry !== undefined) {
     return existingEntry
   }
@@ -41,33 +29,34 @@ function getLazyEntry(
     }
     return { default: module.gameRoute.Entry }
   })
-  attempts.set(attempt, entry)
+  lazyEntries.set(registration, entry)
   return entry
 }
 
-interface LazyGameEntryProps {
-  readonly registration: GameRouteRegistration
-  readonly attempt: number
+function reloadCurrentRoute(): void {
+  window.location.reload()
 }
 
 /*
- * A retry deliberately selects a different React.lazy component identity. The
- * static-components rule cannot model this cache-backed recovery boundary.
+ * The registration selects one cached React.lazy component. The static rule
+ * cannot infer that dynamic registration identity, so this boundary is kept
+ * deliberately small and documented.
  */
 /* eslint-disable react-hooks/static-components */
-function LazyGameEntry({ registration, attempt }: LazyGameEntryProps) {
-  const Entry = getLazyEntry(registration, attempt)
+function LazyGameEntry({ registration }: LazyGameRouteProps) {
+  const Entry = getLazyEntry(registration)
   return <Entry />
 }
 /* eslint-enable react-hooks/static-components */
 
-export function LazyGameRoute({ registration }: LazyGameRouteProps) {
-  const [attempt, setAttempt] = useState(0)
-
+export function LazyGameRoute({
+  registration,
+  reload = reloadCurrentRoute,
+}: LazyGameRouteProps) {
   return (
-    <RouteErrorBoundary onRetry={() => setAttempt((value) => value + 1)}>
+    <RouteErrorBoundary onRetry={reload}>
       <Suspense fallback={<p role="status">Loading game shell</p>}>
-        <LazyGameEntry registration={registration} attempt={attempt} />
+        <LazyGameEntry registration={registration} />
       </Suspense>
     </RouteErrorBoundary>
   )

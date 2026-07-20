@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react'
+import { useState } from 'react'
 import { HashRouter } from 'react-router-dom'
 import { expect, test } from 'vitest'
 import { render } from 'vitest-browser-react'
@@ -61,60 +61,33 @@ test('shows retry and return actions after a route render failure', async () => 
   await expect.poll(() => document.querySelector('a[href="#/"]')).toBeNull()
 })
 
-test('retries a rejected lazy game load with a fresh entry', async () => {
+test('reloads after a rejected lazy game load instead of reusing its import', async () => {
   let loadCalls = 0
   let rejectFirstLoad: (reason?: unknown) => void = () => {
     throw new Error('First lazy loader was not initialized')
   }
-  let resolveSecondLoad: (value: {
-    readonly gameRoute: {
-      readonly metadata: typeof FANSTOCKS_METADATA
-      readonly Entry: () => ReactNode
-      readonly saveKey: string
-      readonly reset: () => void
-      readonly getProgressBadge: () => {
-        readonly label: string
-        readonly value: string
-        readonly tone: 'neutral'
-      }
-    }
-  }) => void = () => {
-    throw new Error('Second lazy loader was not initialized')
-  }
-
-  function RecoveredEntry() {
-    return <h1>Recovered lazy game</h1>
-  }
+  let reloadCalls = 0
 
   const registration: GameRouteRegistration = {
     metadata: FANSTOCKS_METADATA,
     load: () => {
       loadCalls += 1
-      if (loadCalls === 1) {
-        return new Promise((_, reject) => {
-          rejectFirstLoad = reject
-        })
-      }
-      return new Promise((resolve) => {
-        resolveSecondLoad = resolve
+      return new Promise((_, reject) => {
+        rejectFirstLoad = reject
       })
     },
   }
-  const gameRoute = {
-    metadata: FANSTOCKS_METADATA,
-    Entry: RecoveredEntry,
-    saveKey: 'test:fanstocks',
-    reset: () => undefined,
-    getProgressBadge: () => ({
-      label: 'Test',
-      value: '0',
-      tone: 'neutral' as const,
-    }),
-  }
+  window.location.hash = '#/fanstocks?seed=retry-42&rules=1'
+  const hashBeforeRetry = window.location.hash
 
   const screen = await render(
     <HashRouter>
-      <LazyGameRoute registration={registration} />
+      <LazyGameRoute
+        registration={registration}
+        reload={() => {
+          reloadCalls += 1
+        }}
+      />
     </HashRouter>,
   )
 
@@ -126,10 +99,10 @@ test('retries a rejected lazy game load with a fresh entry', async () => {
   ).toBeVisible()
 
   await screen.getByRole('button', { name: 'Try again' }).click()
-  await expect.element(screen.getByRole('status')).toBeVisible()
-  await expect.poll(() => loadCalls).toBe(2)
-  resolveSecondLoad({ gameRoute })
+  await expect.poll(() => reloadCalls).toBe(1)
+  await expect.poll(() => loadCalls).toBe(1)
   await expect.element(
-    screen.getByRole('heading', { name: 'Recovered lazy game', level: 1 }),
+    screen.getByRole('heading', { name: 'This game hit a snag' }),
   ).toBeVisible()
+  await expect.poll(() => window.location.hash).toBe(hashBeforeRetry)
 })

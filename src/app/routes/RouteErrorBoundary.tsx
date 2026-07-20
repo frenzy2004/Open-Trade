@@ -41,8 +41,11 @@ export class RouteErrorBoundary extends Component<
         <div className="route-error__actions">
           <Button
             onClick={() => {
-              this.props.onRetry?.()
-              this.setState({ error: null })
+              if (this.props.onRetry === undefined) {
+                this.setState({ error: null })
+                return
+              }
+              this.props.onRetry()
             }}
           >
             Try again
