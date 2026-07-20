@@ -3,10 +3,12 @@ param(
     [string]$PlanPath = 'design/higgsfield/generation-plan.json',
     [string]$StylePath = 'design/style-formula.txt',
     [string]$JobsDirectory = 'design/higgsfield/jobs',
-    [string]$RawDirectory = 'work/higgsfield/raw/static'
+    [string]$RawDirectory = 'work/higgsfield/raw/static',
+    [int]$Attempt = 1
 )
 
 $ErrorActionPreference = 'Stop'
+if ($Attempt -ne 1 -and $Attempt -ne 2) { throw 'Attempt must be 1 or 2.' }
 $templates = @{
     background = 'game background of {0}, wide establishing view, '
     sprite = 'game sprite of {0}, single character/object, full body visible, centered, '
@@ -52,14 +54,14 @@ $submissions = foreach ($asset in $plan.assets) {
         '--json'
     )
     $requestJson = & higgsfield @args
-    $requestPath = Join-Path $JobsDirectory "$($asset.id)-request.json"
+    $requestPath = Join-Path $JobsDirectory "$($asset.id)-a$Attempt-request.json"
     Set-Content -Path $requestPath -Value $requestJson -NoNewline -Encoding utf8
     [pscustomobject]@{ Asset = $asset; JobId = Get-JobId ($requestJson | ConvertFrom-Json) }
 }
 
 foreach ($submission in $submissions) {
     $completeJson = higgsfield generate wait $submission.JobId --timeout 20m --interval 5s --json
-    Set-Content -Path (Join-Path $JobsDirectory "$($submission.Asset.id)-complete.json") -Value $completeJson -NoNewline -Encoding utf8
+    Set-Content -Path (Join-Path $JobsDirectory "$($submission.Asset.id)-a$Attempt-complete.json") -Value $completeJson -NoNewline -Encoding utf8
     $downloadUrl = Get-DownloadUrl ($completeJson | ConvertFrom-Json)
     if (-not $downloadUrl) { throw "No raw download URL in completion for $($submission.Asset.id)." }
     $extension = if ($submission.Asset.transparent) { '.png' } else { '.webp' }

@@ -116,17 +116,17 @@ class SpriteToolsTest(unittest.TestCase):
         audio_ids = [asset["id"] for asset in audio_plan["assets"]]
         for asset_id in [*static_ids, *audio_ids]:
             for stage in ("request", "complete"):
-                (jobs / f"{asset_id}-{stage}.json").write_text("{}")
+                (jobs / f"{asset_id}-a1-{stage}.json").write_text("{}")
         for asset_id in [asset["id"] for asset in generation_plan["assets"] if asset["transparent"]]:
             for stage in ("request", "complete"):
                 (jobs / f"{asset_id}-remove-bg-a1-{stage}.json").write_text("{}")
         for stage_name in ("ws-run-loop-key-pose", "ws-run-loop-video"):
             for stage in ("request", "complete"):
-                (jobs / f"{stage_name}-{stage}.json").write_text("{}")
+                (jobs / f"{stage_name}-a1-{stage}.json").write_text("{}")
         for index in range(16):
             for stage in ("request", "complete"):
                 (jobs / f"ws-run-loop-frame-{index:04d}-remove-bg-a1-{stage}.json").write_text("{}")
-        (jobs / "ws-run-loop-assembly.json").write_text('{"frames":15}')
+        (jobs / "ws-run-loop-assembly-a1.json").write_text('{"frames":15}')
 
         all_ids = [*static_ids, "ws-run-loop", *audio_ids]
         review = fixture_root / "design/higgsfield/review.csv"
@@ -221,6 +221,88 @@ class SpriteToolsTest(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertRegex(output, r"Expected exactly 16\s+animation frames")
             self.assertFalse(paid_call_marker.exists(), "preflight reached the Higgsfield command")
+
+    def test_runner_video_prompt_includes_the_exact_style_formula(self):
+        style = (ROOT / "design/style-formula.txt").read_text(encoding="utf-8").rstrip("\r\n")
+        result = subprocess.run(
+            [
+                "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
+                f"Import-Module '{(ROOT / 'scripts/assets/runner-tools.psm1').as_posix()}'; "
+                f"New-RunnerVideoPrompt -StyleFormula (Get-Content -Raw '{(ROOT / 'design/style-formula.txt').as_posix()}').TrimEnd()",
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        expected = (
+            f"{style} fast forward sprint cycle in place. Camera locked, no camera movement, no zoom, "
+            "subject stays fully in frame, plain static background. The character performs ONLY this action; "
+            "nothing else happens. The subject keeps facing the same direction for the entire video - never turns "
+            "around, never rotates toward or away from the camera, no head turns past the shoulder."
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.rstrip("\r\n"), expected)
+
+    def test_runner_endpoint_helper_replaces_frame_0015_and_assembly_succeeds(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            frames = temporary / "alpha"
+            frames.mkdir()
+            for index in range(16):
+                frame = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+                ImageDraw.Draw(frame).rectangle((index % 8, 1, index % 8 + 4, 12), fill=(255, 255, 255, 255))
+                frame.save(frames / f"{index:04d}.png")
+            before = (frames / "0015.png").read_bytes()
+            result = subprocess.run(
+                [
+                    "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
+                    f"Import-Module '{(ROOT / 'scripts/assets/runner-tools.psm1').as_posix()}'; "
+                    f"Set-RunnerLoopEndpoint -FrameDirectory '{frames.as_posix()}'",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotEqual(before, (frames / "0015.png").read_bytes())
+            self.assertEqual((frames / "0000.png").read_bytes(), (frames / "0015.png").read_bytes())
+            output = temporary / "runner_run_f15_256x256_g4x4_fps16_loop.png"
+            assembled = subprocess.run(
+                ["python", str(ROOT / "scripts/assets/assemble_spritesheet.py"), str(frames), str(output), "--loop"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(assembled.returncode, 0, assembled.stderr)
+
+    def test_validator_accepts_an_accepted_second_attempt(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            fixture_root = Path(temporary_directory)
+            self.build_asset_fixture(fixture_root)
+            jobs = fixture_root / "design/higgsfield/jobs"
+            for stage in ("request", "complete"):
+                (jobs / f"ws-run-loop-key-pose-a1-{stage}.json").rename(jobs / f"ws-run-loop-key-pose-a2-{stage}.json")
+                (jobs / f"ws-run-loop-video-a1-{stage}.json").rename(jobs / f"ws-run-loop-video-a2-{stage}.json")
+            for index in range(16):
+                for stage in ("request", "complete"):
+                    (jobs / f"ws-run-loop-frame-{index:04d}-remove-bg-a1-{stage}.json").rename(
+                        jobs / f"ws-run-loop-frame-{index:04d}-remove-bg-a2-{stage}.json"
+                    )
+            (jobs / "ws-run-loop-assembly-a1.json").rename(jobs / "ws-run-loop-assembly-a2.json")
+            review = fixture_root / "design/higgsfield/review.csv"
+            review.write_text(review.read_text().replace("ws-run-loop,final,1", "ws-run-loop,final,2"))
+            result = self.run_asset_validator(fixture_root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_validator_rejects_an_accepted_third_attempt(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            fixture_root = Path(temporary_directory)
+            self.build_asset_fixture(fixture_root)
+            review = fixture_root / "design/higgsfield/review.csv"
+            review.write_text(review.read_text().replace("ws-coin,final,1", "ws-coin,final,3"))
+            result = self.run_asset_validator(fixture_root)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("ws-coin accepted review attempt must be 1 or 2", result.stderr)
 
 
 if __name__ == "__main__":

@@ -137,32 +137,55 @@ if (manifest.length && (manifest.some(({ id }) => !expectedIds.has(id)) || [...e
   errors.push('manifest IDs do not agree with the output plans');
 }
 
+const reviewPath = requireFile('design/higgsfield/review.csv', 'review ledger');
+const acceptedAttempts = new Map();
+if (reviewPath) {
+  for (const row of parseCsv(readFileSync(reviewPath, 'utf8'))) {
+    if (row.accepted.toLowerCase() !== 'true') continue;
+    if (!expectedIds.has(row.id)) continue;
+    if (acceptedAttempts.has(row.id)) {
+      errors.push(`${row.id} must have exactly one accepted review row`);
+      continue;
+    }
+    if (!/^[12]$/.test(row.attempt)) {
+      errors.push(`${row.id} accepted review attempt must be 1 or 2`);
+      continue;
+    }
+    acceptedAttempts.set(row.id, Number(row.attempt));
+  }
+  for (const id of expectedIds) if (!acceptedAttempts.has(id)) errors.push(`missing accepted review row for ${id}`);
+}
+
+function acceptedAttempt(id) {
+  return acceptedAttempts.get(id);
+}
+
+function requireAttemptedPair(stem, attempt, label) {
+  if (!attempt) return;
+  requireFile(`design/higgsfield/jobs/${stem}-a${attempt}-request.json`, `${label} request provenance`);
+  requireFile(`design/higgsfield/jobs/${stem}-a${attempt}-complete.json`, `${label} completion provenance`);
+}
+
 for (const id of [...generationPlan.assets, ...audioPlan.assets].map(({ id }) => id)) {
-  requireFile(`design/higgsfield/jobs/${id}-request.json`, `${id} request provenance`);
-  requireFile(`design/higgsfield/jobs/${id}-complete.json`, `${id} completion provenance`);
+  requireAttemptedPair(id, acceptedAttempt(id), id);
 }
 
 const transparentStaticIds = generationPlan.assets.filter(({ transparent }) => transparent).map(({ id }) => id);
 if (transparentStaticIds.length !== 6) errors.push(`generation plan must contain six transparent static assets; found ${transparentStaticIds.length}`);
 for (const id of transparentStaticIds) {
-  requireFile(`design/higgsfield/jobs/${id}-remove-bg-a1-request.json`, `${id} background-removal request provenance`);
-  requireFile(`design/higgsfield/jobs/${id}-remove-bg-a1-complete.json`, `${id} background-removal completion provenance`);
+  requireAttemptedPair(`${id}-remove-bg`, acceptedAttempt(id), `${id} background-removal`);
 }
-for (const stage of ['ws-run-loop-key-pose', 'ws-run-loop-video']) {
-  requireFile(`design/higgsfield/jobs/${stage}-request.json`, `${stage} request provenance`);
-  requireFile(`design/higgsfield/jobs/${stage}-complete.json`, `${stage} completion provenance`);
-}
-for (let index = 0; index < 16; index += 1) {
-  const frame = String(index).padStart(4, '0');
-  requireFile(`design/higgsfield/jobs/ws-run-loop-frame-${frame}-remove-bg-a1-request.json`, `ws-run-loop frame ${frame} background-removal request provenance`);
-  requireFile(`design/higgsfield/jobs/ws-run-loop-frame-${frame}-remove-bg-a1-complete.json`, `ws-run-loop frame ${frame} background-removal completion provenance`);
-}
-requireFile('design/higgsfield/jobs/ws-run-loop-assembly.json', 'ws-run-loop assembly metadata');
 
-const reviewPath = requireFile('design/higgsfield/review.csv', 'review ledger');
-if (reviewPath) {
-  const accepted = new Set(parseCsv(readFileSync(reviewPath, 'utf8')).filter((row) => row.accepted === 'true').map(({ id }) => id));
-  for (const id of expectedIds) if (!accepted.has(id)) errors.push(`missing accepted review row for ${id}`);
+const runnerAttempt = acceptedAttempt('ws-run-loop');
+for (const stage of ['ws-run-loop-key-pose', 'ws-run-loop-video']) {
+  requireAttemptedPair(stage, runnerAttempt, stage);
+}
+if (runnerAttempt) {
+  for (let index = 0; index < 16; index += 1) {
+    const frame = String(index).padStart(4, '0');
+    requireAttemptedPair(`ws-run-loop-frame-${frame}-remove-bg`, runnerAttempt, `ws-run-loop frame ${frame} background-removal`);
+  }
+  requireFile(`design/higgsfield/jobs/ws-run-loop-assembly-a${runnerAttempt}.json`, 'ws-run-loop assembly metadata');
 }
 
 const catalogPath = requireFile('src/assets/catalog.ts', 'asset catalog');

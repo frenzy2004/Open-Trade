@@ -2,10 +2,12 @@
 param(
     [string]$PlanPath = 'design/higgsfield/audio-plan.json',
     [string]$JobsDirectory = 'design/higgsfield/jobs',
-    [string]$RawDirectory = 'work/higgsfield/raw/audio'
+    [string]$RawDirectory = 'work/higgsfield/raw/audio',
+    [int]$Attempt = 1
 )
 
 $ErrorActionPreference = 'Stop'
+if ($Attempt -ne 1 -and $Attempt -ne 2) { throw 'Attempt must be 1 or 2.' }
 
 function Get-JobId([object]$Response) {
     foreach ($name in @('jobId', 'job_id', 'id')) {
@@ -36,13 +38,13 @@ $submissions = foreach ($asset in $plan.assets) {
     } else {
         throw "Unsupported audio model: $($asset.model)"
     }
-    Set-Content -Path (Join-Path $JobsDirectory "$($asset.id)-request.json") -Value $requestJson -NoNewline -Encoding utf8
+    Set-Content -Path (Join-Path $JobsDirectory "$($asset.id)-a$Attempt-request.json") -Value $requestJson -NoNewline -Encoding utf8
     [pscustomobject]@{ Asset = $asset; JobId = Get-JobId ($requestJson | ConvertFrom-Json) }
 }
 
 foreach ($submission in $submissions) {
     $completeJson = higgsfield generate wait $submission.JobId --timeout 20m --interval 5s --json
-    Set-Content -Path (Join-Path $JobsDirectory "$($submission.Asset.id)-complete.json") -Value $completeJson -NoNewline -Encoding utf8
+    Set-Content -Path (Join-Path $JobsDirectory "$($submission.Asset.id)-a$Attempt-complete.json") -Value $completeJson -NoNewline -Encoding utf8
     $downloadUrl = Get-DownloadUrl ($completeJson | ConvertFrom-Json)
     if (-not $downloadUrl) { throw "No raw download URL in completion for $($submission.Asset.id)." }
     Invoke-WebRequest -Uri $downloadUrl -OutFile (Join-Path $RawDirectory "$($submission.Asset.id).wav")

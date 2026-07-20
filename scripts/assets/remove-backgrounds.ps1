@@ -10,6 +10,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+if ($Attempt -ne 1 -and $Attempt -ne 2) { throw 'Attempt must be 1 or 2.' }
 
 function Get-JobId([object]$Response) {
     foreach ($name in @('jobId', 'job_id', 'id')) {
