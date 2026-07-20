@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const root = resolve(import.meta.dirname, '..', '..');
+const root = resolve(process.env.OPEN_TRADE_ASSET_ROOT ?? resolve(import.meta.dirname, '..', '..'));
 const fromRoot = (relativePath) => resolve(root, relativePath);
 const errors = [];
 
@@ -54,7 +54,7 @@ function inspectImage(relativePath) {
   try {
     const output = execFileSync(
       'python',
-      ['-c', "import json,sys; from PIL import Image; im=Image.open(sys.argv[1]); print(json.dumps({'width':im.width,'height':im.height,'alpha':'A' in im.getbands()}))", imagePath],
+      ['-c', "import json,sys; from PIL import Image; im=Image.open(sys.argv[1]); alpha='A' in im.getbands(); extrema=im.getchannel('A').getextrema() if alpha else None; print(json.dumps({'width':im.width,'height':im.height,'alpha':alpha,'transparentPixel':bool(alpha and extrema[0] < 255)}))", imagePath],
       { encoding: 'utf8' },
     );
     return JSON.parse(output);
@@ -74,6 +74,9 @@ function checkImage(spec) {
   }
   if (Boolean(inspected.alpha) !== Boolean(spec.transparent)) {
     errors.push(`${spec.id} alpha must be ${Boolean(spec.transparent)}`);
+  }
+  if (spec.transparent && !inspected.transparentPixel) {
+    errors.push(`${spec.id} must contain at least one transparent pixel`);
   }
   const maximumBytes = spec.id === 'ws-run-loop'
     ? 2 * 1024 * 1024
@@ -134,10 +137,27 @@ if (manifest.length && (manifest.some(({ id }) => !expectedIds.has(id)) || [...e
   errors.push('manifest IDs do not agree with the output plans');
 }
 
-for (const id of expectedIds) {
+for (const id of [...generationPlan.assets, ...audioPlan.assets].map(({ id }) => id)) {
   requireFile(`design/higgsfield/jobs/${id}-request.json`, `${id} request provenance`);
   requireFile(`design/higgsfield/jobs/${id}-complete.json`, `${id} completion provenance`);
 }
+
+const transparentStaticIds = generationPlan.assets.filter(({ transparent }) => transparent).map(({ id }) => id);
+if (transparentStaticIds.length !== 6) errors.push(`generation plan must contain six transparent static assets; found ${transparentStaticIds.length}`);
+for (const id of transparentStaticIds) {
+  requireFile(`design/higgsfield/jobs/${id}-remove-bg-a1-request.json`, `${id} background-removal request provenance`);
+  requireFile(`design/higgsfield/jobs/${id}-remove-bg-a1-complete.json`, `${id} background-removal completion provenance`);
+}
+for (const stage of ['ws-run-loop-key-pose', 'ws-run-loop-video']) {
+  requireFile(`design/higgsfield/jobs/${stage}-request.json`, `${stage} request provenance`);
+  requireFile(`design/higgsfield/jobs/${stage}-complete.json`, `${stage} completion provenance`);
+}
+for (let index = 0; index < 16; index += 1) {
+  const frame = String(index).padStart(4, '0');
+  requireFile(`design/higgsfield/jobs/ws-run-loop-frame-${frame}-remove-bg-a1-request.json`, `ws-run-loop frame ${frame} background-removal request provenance`);
+  requireFile(`design/higgsfield/jobs/ws-run-loop-frame-${frame}-remove-bg-a1-complete.json`, `ws-run-loop frame ${frame} background-removal completion provenance`);
+}
+requireFile('design/higgsfield/jobs/ws-run-loop-assembly.json', 'ws-run-loop assembly metadata');
 
 const reviewPath = requireFile('design/higgsfield/review.csv', 'review ledger');
 if (reviewPath) {
@@ -148,8 +168,17 @@ if (reviewPath) {
 const catalogPath = requireFile('src/assets/catalog.ts', 'asset catalog');
 if (catalogPath) {
   const catalog = readFileSync(catalogPath, 'utf8');
-  for (const id of expectedIds) {
-    if (!catalog.includes(`'${id}'`) && !catalog.includes(`\"${id}\"`)) errors.push(`asset catalog is missing ${id}`);
+  const match = catalog.match(/export\s+const\s+ASSET_CATALOG_IDS\s*=\s*\[([\s\S]*?)\]\s*as\s+const\s*;/);
+  if (!match) {
+    errors.push('asset catalog must export ASSET_CATALOG_IDS as a const string array');
+  } else {
+    const catalogIds = [...match[1].matchAll(/(['"])([a-z0-9-]+)\1/g)].map((entry) => entry[2]);
+    const catalogSet = new Set(catalogIds);
+    if (catalogSet.size !== catalogIds.length) errors.push('asset catalog IDs must be unique');
+    const missing = [...expectedIds].filter((id) => !catalogSet.has(id));
+    const extra = [...catalogSet].filter((id) => !expectedIds.has(id));
+    if (missing.length) errors.push(`asset catalog IDs missing: ${missing.join(', ')}`);
+    if (extra.length) errors.push(`asset catalog IDs extra: ${extra.join(', ')}`);
   }
 }
 

@@ -5,6 +5,7 @@ param(
     [string]$OutputRoot = 'work/higgsfield/raw/alpha',
     [string]$FrameRoot,
     [int]$Attempt = 1,
+    [string]$ProvenancePrefix,
     [string]$JobsDirectory = 'design/higgsfield/jobs'
 )
 
@@ -30,22 +31,26 @@ function Get-DownloadUrl([object]$Response) {
     return $null
 }
 
-New-Item -ItemType Directory -Force -Path $OutputRoot, $JobsDirectory | Out-Null
 $inputs = @()
 if ($FrameRoot) {
-    $inputs += Get-ChildItem -Path $FrameRoot -Filter '*.png' -File | Sort-Object Name
+    $inputs = @(Get-ChildItem -Path $FrameRoot -Filter '*.png' -File | Sort-Object Name)
+    if ($inputs.Count -ne 16) { throw "Expected exactly 16 animation frames under $FrameRoot; found $($inputs.Count)." }
 } else {
     $plan = Get-Content -Raw $PlanPath | ConvertFrom-Json
-    foreach ($asset in $plan.assets | Where-Object transparent) {
-        $match = Get-ChildItem -Path $InputRoot -File | Where-Object BaseName -eq $asset.id | Select-Object -First 1
-        if (-not $match) { throw "Missing transparent source for $($asset.id) under $InputRoot." }
-        $inputs += $match
+    $transparentAssets = @($plan.assets | Where-Object transparent)
+    if ($transparentAssets.Count -ne 6) { throw "Expected exactly six transparent static assets; found $($transparentAssets.Count)." }
+    foreach ($asset in $transparentAssets) {
+        $matches = @(Get-ChildItem -Path $InputRoot -File | Where-Object BaseName -eq $asset.id)
+        if ($matches.Count -ne 1) { throw "Expected exactly one transparent source for $($asset.id) under $InputRoot; found $($matches.Count)." }
+        $inputs += $matches[0]
     }
+    if ($inputs.Count -ne 6) { throw "Expected exactly six transparent static inputs; found $($inputs.Count)." }
 }
+New-Item -ItemType Directory -Force -Path $OutputRoot, $JobsDirectory | Out-Null
 
 $submissions = foreach ($input in $inputs) {
     $requestJson = higgsfield generate create image_background_remover --image $input.FullName --json
-    $key = "$($input.BaseName)-remove-bg-a$Attempt"
+    $key = if ($FrameRoot -and $ProvenancePrefix) { "$ProvenancePrefix-$($input.BaseName)-remove-bg-a$Attempt" } else { "$($input.BaseName)-remove-bg-a$Attempt" }
     Set-Content -Path (Join-Path $JobsDirectory "$key-request.json") -Value $requestJson -NoNewline -Encoding utf8
     [pscustomobject]@{ Input = $input; Key = $key; JobId = Get-JobId ($requestJson | ConvertFrom-Json) }
 }
