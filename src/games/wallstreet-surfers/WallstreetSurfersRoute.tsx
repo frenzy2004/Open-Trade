@@ -6,10 +6,16 @@ import {
   useState,
 } from 'react'
 import { useLocation } from 'react-router-dom'
+import { useAudio } from '../../shared/audio/AudioContext'
 import type { GameStore } from '../../shared/persistence/gameStore'
 import { createGuestSeed, parseChallenge } from '../../shared/routing/challenge'
 import { useSettings } from '../../shared/settings/SettingsContext'
 import { Button } from '../../shared/ui'
+import { RUNNER_BACKGROUND_ASSET } from './assets/runnerAssets'
+import {
+  RunnerAudioController,
+  type RunnerAudioPlayer,
+} from './audio/runnerAudio'
 import { createChallengeHash } from './challenge'
 import type { MarketDirection } from './content/marketGates'
 import type { RunnerCommand, RunnerState } from './engine/types'
@@ -38,6 +44,7 @@ import {
   type TutorialAction,
   type TutorialStep,
 } from './ui/tutorialState'
+import './wallstreet-surfers.css'
 
 export interface WallstreetSurfersRouteProps {
   readonly createGame?: (
@@ -45,16 +52,23 @@ export interface WallstreetSurfersRouteProps {
     options: CreateRunnerGameOptions,
   ) => RunnerGameHandle
   readonly store?: GameStore<RunnerSaveV1>
+  readonly audioPlayer?: RunnerAudioPlayer
 }
 
 export function WallstreetSurfersRoute({
   createGame = createRunnerGame,
   store = runnerStore,
+  audioPlayer,
 }: WallstreetSurfersRouteProps) {
   const { search } = useLocation()
   const { settings } = useSettings()
   const mountRef = useRef<HTMLDivElement>(null)
   const gameRef = useRef<RunnerGameHandle | null>(null)
+  const sharedAudio = useAudio()
+  const runnerAudio = useMemo(
+    () => new RunnerAudioController(audioPlayer ?? sharedAudio),
+    [audioPlayer, sharedAudio],
+  )
   const initialLoad = useMemo(() => store.load(), [store])
   const challenge = useMemo(() => parseChallenge(search), [search])
   const hasExplicitChallenge = useMemo(() => {
@@ -108,10 +122,11 @@ export function WallstreetSurfersRoute({
     setSaveError(!result.ok)
   }, [store])
   const handleSnapshot = useCallback((state: RunnerState) => {
+    runnerAudio.observe(state)
     setSnapshot(state)
     setDiagnostics(gameRef.current?.diagnostics?.() ?? null)
     if (state.phase === 'gameOver') persistState(state)
-  }, [persistState])
+  }, [persistState, runnerAudio])
   const handleRunnerCommand = useCallback((command: RunnerCommand) => {
     gameRef.current?.dispatch(command)
     setTutorialStep((current) => advanceTutorial(current, command))
@@ -124,12 +139,14 @@ export function WallstreetSurfersRoute({
     handleRunnerCommand(action)
   }, [handleRunnerCommand])
   const handleGateAnswer = useCallback((answer: MarketDirection) => {
+    runnerAudio.confirm()
     handleRunnerCommand(answer === 'long' ? 'JUMP' : 'ROLL')
-  }, [handleRunnerCommand])
+  }, [handleRunnerCommand, runnerAudio])
   const handleRunAgain = useCallback(() => {
+    runnerAudio.confirm()
     setShareStatus(null)
     handleRunnerCommand('RESTART')
-  }, [handleRunnerCommand])
+  }, [handleRunnerCommand, runnerAudio])
   const handleShare = useCallback(async () => {
     const hash = createChallengeHash(seed, 1)
     const url = `${window.location.origin}${window.location.pathname}${hash}`
@@ -178,11 +195,12 @@ export function WallstreetSurfersRoute({
 
   useEffect(() => {
     if (tutorialStep !== 'complete' || tutorialCompleteRef.current) return
+    runnerAudio.confirm()
     tutorialCompleteRef.current = true
     const game = gameRef.current
     game?.completeTutorial?.()
     if (game !== null) persistState(game.snapshot())
-  }, [persistState, tutorialStep])
+  }, [persistState, runnerAudio, tutorialStep])
 
   useEffect(() => {
     const input = new RunnerInput(handleRunnerCommand)
@@ -233,17 +251,27 @@ export function WallstreetSurfersRoute({
         </div>
       ) : null}
       <div
-        ref={mountRef}
-        className="runner-canvas-mount"
-        data-testid="runner-canvas-mount"
-        role="img"
-        aria-label="Wallstreet Surfers three-lane game world"
-      />
-      {snapshot !== null ? (
-        <>
+        className="runner-stage"
+        data-reduced-motion={settings.reducedMotion}
+        style={{
+          backgroundImage: `linear-gradient(180deg, rgb(8 15 27 / 0.08), rgb(8 15 27 / 0.68)), url("${RUNNER_BACKGROUND_ASSET.url}")`,
+        }}
+      >
+        <div
+          ref={mountRef}
+          className="runner-canvas-mount"
+          data-testid="runner-canvas-mount"
+          role="img"
+          aria-label="Wallstreet Surfers three-lane game world"
+        />
+        {snapshot !== null ? (
+          <>
           <RunnerHud
             state={snapshot}
-            onPause={() => handleRunnerCommand('PAUSE')}
+            onPause={() => {
+              runnerAudio.confirm()
+              handleRunnerCommand('PAUSE')
+            }}
           />
           <MarketGatePrompt state={snapshot} onAnswer={handleGateAnswer} />
           <RunnerDebugOverlay
@@ -256,9 +284,10 @@ export function WallstreetSurfersRoute({
             onRunAgain={handleRunAgain}
             onShare={() => { void handleShare() }}
           />
-        </>
-      ) : null}
-      <RunnerTutorial step={tutorialStep} onAction={handleTutorialAction} />
+          </>
+        ) : null}
+        <RunnerTutorial step={tutorialStep} onAction={handleTutorialAction} />
+      </div>
       <TouchControls
         onCommand={handleRunnerCommand}
         disabled={snapshot?.phase === 'gameOver'}

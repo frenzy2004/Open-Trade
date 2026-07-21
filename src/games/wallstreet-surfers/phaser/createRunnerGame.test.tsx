@@ -1,4 +1,9 @@
 import {
+  type ComponentProps,
+  type PropsWithChildren,
+  useMemo,
+} from 'react'
+import {
   act,
   cleanup,
   fireEvent,
@@ -8,9 +13,14 @@ import {
 } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { AudioProvider } from '../../../shared/audio/AudioContext'
+import {
+  AudioManager,
+  type PlayableAudio,
+} from '../../../shared/audio/AudioManager'
 import { createSettingsStore } from '../../../shared/settings/settingsStore'
 import {
-  SettingsProvider,
+  SettingsProvider as BaseSettingsProvider,
   useSettings,
 } from '../../../shared/settings/SettingsContext'
 import type { GameStore } from '../../../shared/persistence/gameStore'
@@ -42,6 +52,30 @@ vi.mock('phaser', () => {
     },
   }
 })
+
+function silentAudio(): PlayableAudio {
+  const audio = {
+    currentTime: 0,
+    loop: false,
+    volume: 1,
+    play: async () => undefined,
+    pause: () => undefined,
+    addEventListener: () => undefined,
+  }
+  return audio
+}
+
+function SettingsProvider({
+  children,
+  ...props
+}: PropsWithChildren<ComponentProps<typeof BaseSettingsProvider>>) {
+  const audioManager = useMemo(() => new AudioManager(silentAudio), [])
+  return (
+    <BaseSettingsProvider {...props}>
+      <AudioProvider manager={audioManager}>{children}</AudioProvider>
+    </BaseSettingsProvider>
+  )
+}
 
 function createMemoryStorage() {
   const values = new Map<string, string>()
