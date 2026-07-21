@@ -1,7 +1,9 @@
-import { createRunnerState } from './createRunnerState'
+import { applyCommands, settleVerticalState } from './applyCommands'
+import { resolveRunnerCollisions } from './collisions'
 import {
   FIXED_STEP_MS,
   MAX_SPEED_MPS,
+  MAX_FIXED_DELTA_MS,
   SPEED_STEP_DISTANCE_M,
   SPEED_STEP_MPS,
   START_SPEED_MPS,
@@ -12,33 +14,6 @@ import {
 } from './types'
 
 const STEP_EPSILON_MS = 1e-9
-
-function resetRunner(state: RunnerState): void {
-  const reset = createRunnerState({
-    seed: state.seed,
-    reducedMotion: state.reducedMotion,
-    bestScore: Math.max(state.bestScore, state.score),
-  })
-  Object.assign(state, reset)
-}
-
-function applyLifecycleCommands(
-  state: RunnerState,
-  commands: readonly RunnerCommand[],
-): 'continue' | 'stop' {
-  if (commands.includes('RESTART')) {
-    resetRunner(state)
-    return 'stop'
-  }
-
-  if (commands.includes('PAUSE')) {
-    if (state.phase === 'running') state.phase = 'paused'
-    else if (state.phase === 'paused') state.phase = 'running'
-    return 'stop'
-  }
-
-  return 'continue'
-}
 
 function advanceOneTick(state: RunnerState): void {
   state.tick += 1
@@ -54,6 +29,8 @@ function advanceOneTick(state: RunnerState): void {
   )
   state.powellGap = Math.min(100, Math.max(0, state.powellGap))
   state.bestScore = Math.max(state.bestScore, state.score)
+  settleVerticalState(state)
+  resolveRunnerCollisions(state)
 }
 
 export function stepRunner(
@@ -67,11 +44,17 @@ export function stepRunner(
     typeof fixedDeltaMs !== 'number'
     || !Number.isFinite(fixedDeltaMs)
     || fixedDeltaMs < 0
+    || fixedDeltaMs > MAX_FIXED_DELTA_MS
   ) {
-    throw new RangeError('fixedDeltaMs must be finite and non-negative')
+    throw new RangeError(
+      `fixedDeltaMs must be finite and between 0 and ${MAX_FIXED_DELTA_MS}`,
+    )
   }
 
-  if (applyLifecycleCommands(state, commands) === 'stop') return state
+  const hasLifecycleCommand = commands.includes('RESTART')
+    || commands.includes('PAUSE')
+  applyCommands(state, commands)
+  if (hasLifecycleCommand) return state
   if (state.phase !== 'running' || fixedDeltaMs === 0) return state
 
   state.simulationRemainderMs += fixedDeltaMs
@@ -83,7 +66,10 @@ export function stepRunner(
     state.simulationRemainderMs = 0
   }
 
-  for (let step = 0; step < stepCount; step += 1) advanceOneTick(state)
+  for (let step = 0; step < stepCount; step += 1) {
+    advanceOneTick(state)
+    if (state.phase !== 'running') break
+  }
 
   assertRunnerState(state)
   return state

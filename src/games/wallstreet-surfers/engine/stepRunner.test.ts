@@ -137,6 +137,28 @@ describe('runner runtime validation', () => {
     ).toThrow(field)
   })
 
+  it('rejects prototype-backed config and state fields', () => {
+    const inheritedConfig = Object.create({
+      seed: 'inherited-config',
+      reducedMotion: false,
+    }) as Parameters<typeof createRunnerState>[0]
+    const inheritedState = Object.create(
+      createRunnerState({ seed: 'inherited-state', reducedMotion: false }),
+    ) as RunnerState
+
+    expect(() => createRunnerState(inheritedConfig)).toThrow('own property')
+    expect(() => stepRunner(inheritedState, [], 0)).toThrow('own property')
+  })
+
+  it('rejects a prototype-backed optional best score', () => {
+    const config = Object.assign(
+      Object.create({ bestScore: 500 }),
+      { seed: 'own-config', reducedMotion: false },
+    ) as Parameters<typeof createRunnerState>[0]
+
+    expect(() => createRunnerState(config)).toThrow('bestScore')
+  })
+
   it.each([Number.NaN, Number.POSITIVE_INFINITY, -1])(
     'rejects invalid elapsed time %s',
     (deltaMs) => {
@@ -169,6 +191,34 @@ describe('runner runtime validation', () => {
         FIXED_STEP_MS,
       ),
     ).toThrow('commands')
+  })
+
+  it('rejects sparse command arrays even when a prototype supplies the slot', () => {
+    const commands: unknown[] = []
+    commands.length = 1
+    const prototype = Object.create(Array.prototype) as Record<number, unknown>
+    prototype[0] = 'MOVE_LEFT'
+    Object.setPrototypeOf(commands, prototype)
+    const state = createRunnerState({ seed: 'sparse-command', reducedMotion: false })
+
+    expect(() =>
+      stepRunner(
+        state,
+        commands as Parameters<typeof stepRunner>[1],
+        FIXED_STEP_MS,
+      ),
+    ).toThrow('dense own-slot array')
+    expect(state.lane).toBe(0)
+  })
+
+  it('rejects an excessive finite delta before applying commands', () => {
+    const state = createRunnerState({ seed: 'huge-delta', reducedMotion: false })
+    const before = structuredClone(state)
+
+    expect(() => stepRunner(state, ['MOVE_LEFT'], 1_000_001)).toThrow(
+      'fixedDeltaMs',
+    )
+    expect(state).toEqual(before)
   })
 
   it.each([
@@ -210,5 +260,45 @@ describe('runner runtime validation', () => {
     })
 
     expect(() => stepRunner(state, [], FIXED_STEP_MS)).toThrow('entities[0].id')
+  })
+
+  it('rejects sparse entity arrays and duplicate entity IDs', () => {
+    const inheritedEntity = {
+      id: 'inherited-entity',
+      kind: 'coin',
+      lane: 0,
+      distanceM: 10,
+      resolved: false,
+    }
+    const sparseEntities: RunnerState['entities'] = []
+    sparseEntities.length = 1
+    const prototype = Object.create(Array.prototype) as Record<number, unknown>
+    prototype[0] = inheritedEntity
+    Object.setPrototypeOf(sparseEntities, prototype)
+
+    expect(() =>
+      stepRunner(copyState({ entities: sparseEntities }), [], 0),
+    ).toThrow('dense own-slot array')
+
+    const duplicate = { ...inheritedEntity, id: 'duplicate' }
+    expect(() =>
+      stepRunner(
+        copyState({ entities: [{ ...duplicate }, { ...duplicate }] }),
+        [],
+        0,
+      ),
+    ).toThrow('unique')
+  })
+
+  it('rejects prototype-backed failure fields', () => {
+    const lastFailure = Object.create({
+      kind: 'barrier',
+      message: 'Inherited failure',
+      tip: 'Inherited tip',
+    }) as RunnerState['lastFailure']
+
+    expect(() => stepRunner(copyState({ lastFailure }), [], 0)).toThrow(
+      'own property',
+    )
   })
 })
