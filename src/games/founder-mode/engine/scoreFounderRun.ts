@@ -96,6 +96,50 @@ function tierForRatio(valueRatio: number): FounderScoreTier {
   return 'cautionary'
 }
 
+const reachableValuesByEpisode = new WeakMap<
+  FounderEpisode,
+  readonly number[]
+>()
+
+function reachableEndingValues(episode: FounderEpisode): readonly number[] {
+  const cached = reachableValuesByEpisode.get(episode)
+  if (cached) return cached
+
+  let values: readonly number[] = [episode.initialValueBn]
+  for (const decision of episode.decisions) {
+    values = values.flatMap((value) =>
+      decision.choices.map(
+        ({ valueMultiplier }) =>
+          Math.round(value * valueMultiplier * 10) / 10,
+      ),
+    )
+  }
+  const sorted = Object.freeze([...values].sort((left, right) => left - right))
+  reachableValuesByEpisode.set(episode, sorted)
+  return sorted
+}
+
+function tierForCompletedRun(
+  currentValueBn: number,
+  episode: FounderEpisode,
+): FounderScoreTier {
+  const values = reachableEndingValues(episode)
+  if (values.length === 0 || !Number.isFinite(currentValueBn)) {
+    return 'cautionary'
+  }
+  let lowerCount = 0
+  let equalCount = 0
+  for (const value of values) {
+    if (value < currentValueBn) lowerCount += 1
+    else if (value === currentValueBn) equalCount += 1
+  }
+  const percentile = (lowerCount + equalCount / 2) / values.length
+  if (percentile >= 0.9) return 'legend'
+  if (percentile >= 0.55) return 'builder'
+  if (percentile >= 0.25) return 'survivor'
+  return 'cautionary'
+}
+
 export function scoreFounderRun(
   state: FounderRunState,
   episode: FounderEpisode,
@@ -117,6 +161,9 @@ export function scoreFounderRun(
       .length,
     workedCount: choices.filter(({ worked }) => worked).length,
     stylePercentages,
-    tier: tierForRatio(valueRatio),
+    tier:
+      state.history.length === episode.decisions.length
+        ? tierForCompletedRun(state.currentValueBn, episode)
+        : tierForRatio(valueRatio),
   })
 }

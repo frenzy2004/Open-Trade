@@ -10,7 +10,7 @@ import {
   FOUNDER_SAVE_KEY,
   founderSaveCodec,
   progressBadgeForFounderSave,
-  type FounderSaveV1,
+  type FounderSave,
 } from './founderSave'
 
 class MemoryStorage implements StorageLike {
@@ -35,7 +35,7 @@ class MemoryStorage implements StorageLike {
   }
 }
 
-function readyRun(): FounderSaveV1 {
+function readyRun(): FounderSave {
   let activeRun = founderReducer(
     createFounderRun(netflix2011, 'classic'),
     { type: 'TAKE_CHAIR' },
@@ -53,6 +53,67 @@ function readyRun(): FounderSaveV1 {
 }
 
 describe('Founder Mode persistence', () => {
+  it('persists the selected episode ruleset in the current save schema', () => {
+    expect(createDefaultFounderSave()).toMatchObject({
+      schemaVersion: 2,
+      selectedEpisodeId: netflix2011.id,
+      episodeRulesetVersion: netflix2011.rulesetVersion,
+    })
+  })
+
+  it('migrates version-one envelopes with their known legacy ruleset', () => {
+    const storage = new MemoryStorage()
+    const current = readyRun()
+    const legacyData = {
+      schemaVersion: 1,
+      selectedEpisodeId: current.selectedEpisodeId,
+      style: current.style,
+      streakDays: current.streakDays,
+      lastCompletedDate: current.lastCompletedDate,
+      activeRun: current.activeRun,
+    }
+    storage.values.set(
+      FOUNDER_SAVE_KEY,
+      JSON.stringify({
+        version: 1,
+        savedAt: '2026-07-21T00:00:00.000Z',
+        seed: null,
+        data: legacyData,
+      }),
+    )
+
+    const loaded = createFounderStore({ storage }).load()
+    expect(loaded).toMatchObject({
+      status: 'ready',
+      migrated: true,
+      value: {
+        schemaVersion: 2,
+        episodeRulesetVersion: 1,
+        activeRun: { phase: 'outcome' },
+      },
+    })
+    const migratedEnvelope = JSON.parse(
+      storage.values.get(FOUNDER_SAVE_KEY) ?? 'null',
+    ) as { version?: unknown; data?: Record<string, unknown> }
+    expect(migratedEnvelope.version).toBe(2)
+    expect(migratedEnvelope.data).toMatchObject({
+      schemaVersion: 2,
+      episodeRulesetVersion: 1,
+    })
+  })
+
+  it('rejects a save created for a different episode ruleset', () => {
+    expect(
+      founderSaveCodec.decode({
+        ...createDefaultFounderSave(),
+        episodeRulesetVersion: netflix2011.rulesetVersion + 1,
+      }),
+    ).toEqual({
+      ok: false,
+      reason: 'Founder save episode ruleset is incompatible',
+    })
+  })
+
   it('loads an empty store without writing a default save', () => {
     const storage = new MemoryStorage()
     const store = createFounderStore({ storage })
@@ -170,7 +231,7 @@ describe('Founder Mode persistence', () => {
   })
 
   it('rejects inherited fields, sparse history, invalid dates, and style drift', () => {
-    const inherited = Object.create(createDefaultFounderSave()) as FounderSaveV1
+    const inherited = Object.create(createDefaultFounderSave()) as FounderSave
     expect(founderSaveCodec.decode(inherited).ok).toBe(false)
 
     const sparse = structuredClone(readyRun()) as unknown as {

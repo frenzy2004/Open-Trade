@@ -183,8 +183,9 @@ describe('Founder streak and replay persistence', () => {
     const store = createFounderStore()
     expect(
       store.save({
-        schemaVersion: 1,
+        schemaVersion: 2,
         selectedEpisodeId: netflix2011.id,
+        episodeRulesetVersion: netflix2011.rulesetVersion,
         style: 'classic',
         streakDays: 3,
         lastCompletedDate: today,
