@@ -99,6 +99,48 @@ describe('rankPortfolios', () => {
     );
   });
 
+  it.each([
+    ['momentum', 'XLE'],
+    ['balanced', 'LOW'],
+  ] as const)(
+    'rejects a cross-participant duplicate introduced in the %s roster',
+    (participantId, duplicateTicker) => {
+      const corrupted = {
+        ...portfolios,
+        [participantId]: {
+          ...portfolios[participantId],
+          tickers: [duplicateTicker, ...portfolios[participantId].tickers.slice(1)],
+        },
+      } as PortfolioMap;
+
+      expect(new Set(corrupted[participantId].tickers).size).toBe(3);
+      expect(() => rankPortfolios(corrupted, frameWith())).toThrow(
+        'Portfolios must contain every FanStocks participant with matching ids',
+      );
+    },
+  );
+
+  it.each(['momentum', 'contrarian'] as const)(
+    'rejects an invented finite-priced ticker in the %s roster',
+    (participantId) => {
+      const corrupted = {
+        ...portfolios,
+        [participantId]: {
+          ...portfolios[participantId],
+          tickers: ['ZZZZ', ...portfolios[participantId].tickers.slice(1)],
+        },
+      } as PortfolioMap;
+      const frame = {
+        ...frameWith(),
+        multipliers: { ...frameWith().multipliers, ZZZZ: 1.1 },
+      };
+
+      expect(() => rankPortfolios(corrupted, frame)).toThrow(
+        'Portfolios must contain every FanStocks participant with matching ids',
+      );
+    },
+  );
+
   it('rejects missing, malformed, and non-finite price frames explicitly', () => {
     const missingMultiplier = {
       ...frameWith(),

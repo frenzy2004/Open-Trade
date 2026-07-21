@@ -6,8 +6,9 @@ import {
 } from './rules';
 import type { PriceFrame } from './priceEngine';
 import { portfolioValue } from './priceEngine';
+import { isCanonicalPortfolioMap } from './portfolioValidation';
 import type { TradeEvent } from './trades';
-import type { Portfolio, PortfolioMap } from './types';
+import type { PortfolioMap } from './types';
 
 export interface RankedPortfolio {
   readonly participantId: ParticipantId;
@@ -29,26 +30,7 @@ const INVALID_PORTFOLIOS_MESSAGE = 'Portfolios must contain every FanStocks part
 const INVALID_FRAME_MESSAGE = 'Price frame must contain a valid tick and finite portfolio multipliers';
 
 function assertValidPortfolios(portfolios: PortfolioMap): void {
-  if (typeof portfolios !== 'object' || portfolios === null) {
-    throw new RangeError(INVALID_PORTFOLIOS_MESSAGE);
-  }
-
-  const record = portfolios as unknown as Record<string, unknown>;
-  if (
-    Object.keys(record).length !== PARTICIPANT_ORDER.length
-    || PARTICIPANT_ORDER.some((participantId) => {
-      const portfolio = record[participantId] as Partial<Portfolio> | undefined;
-      return (
-        typeof portfolio !== 'object'
-        || portfolio === null
-        || portfolio.participantId !== participantId
-        || !Array.isArray(portfolio.tickers)
-        || portfolio.tickers.length !== FANSTOCKS_RULES.cardsPerPortfolio
-        || portfolio.tickers.some((ticker) => typeof ticker !== 'string' || ticker.length === 0)
-        || new Set(portfolio.tickers).size !== portfolio.tickers.length
-      );
-    })
-  ) {
+  if (!isCanonicalPortfolioMap(portfolios)) {
     throw new RangeError(INVALID_PORTFOLIOS_MESSAGE);
   }
 }

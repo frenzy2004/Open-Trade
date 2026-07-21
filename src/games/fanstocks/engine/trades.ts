@@ -4,6 +4,7 @@ import { STOCKS } from '../content/stocks';
 import type { AiId, AiPersonality, StockCard, Ticker } from '../content/types';
 import { validateStocks } from '../content/validateStocks';
 import { scoreCardForPersonality } from './aiDraft';
+import { isCanonicalPortfolioMap } from './portfolioValidation';
 import type { PriceFrame } from './priceEngine';
 import { FANSTOCKS_RULES, PARTICIPANT_ORDER } from './rules';
 import type { Portfolio, PortfolioMap } from './types';
@@ -67,34 +68,6 @@ function validateOfferShape(offer: TradeOffer): TradeValidation {
     return { ok: false, reason: 'Trade cards must be different' };
   }
   return { ok: true };
-}
-
-function hasValidPortfolioStructure(portfolios: PortfolioMap): boolean {
-  if (typeof portfolios !== 'object' || portfolios === null) return false;
-
-  const record = portfolios as unknown as Record<string, unknown>;
-  if (
-    Object.keys(record).length !== PARTICIPANT_ORDER.length
-    || PARTICIPANT_ORDER.some((participantId) => {
-      const portfolio = record[participantId] as Partial<Portfolio> | undefined;
-      return (
-        typeof portfolio !== 'object'
-        || portfolio === null
-        || portfolio.participantId !== participantId
-        || !Array.isArray(portfolio.tickers)
-        || portfolio.tickers.length !== FANSTOCKS_RULES.cardsPerPortfolio
-        || portfolio.tickers.some((ticker) => typeof ticker !== 'string' || ticker.length === 0)
-        || new Set(portfolio.tickers).size !== portfolio.tickers.length
-      );
-    })
-  ) {
-    return false;
-  }
-
-  const allTickers = PARTICIPANT_ORDER.flatMap((participantId) => (
-    (record[participantId] as Portfolio).tickers
-  ));
-  return hasExactCanonicalTickerCoverage(allTickers);
 }
 
 function hasExactCanonicalTickerCoverage(tickers: readonly unknown[]): boolean {
@@ -192,7 +165,7 @@ export function validateTrade(
 ): TradeValidation {
   const shapeValidation = validateOfferShape(offer);
   if (!shapeValidation.ok) return shapeValidation;
-  if (!hasValidPortfolioStructure(portfolios)) {
+  if (!isCanonicalPortfolioMap(portfolios)) {
     return { ok: false, reason: INVALID_PORTFOLIOS_REASON };
   }
   if (!portfolios.player.tickers.includes(offer.playerGives)) {
@@ -238,7 +211,7 @@ export function createIncomingTrade(
   if (!Number.isSafeInteger(createdAtTick) || createdAtTick < 0) {
     throw new RangeError('Trade tick must be a non-negative safe integer');
   }
-  if (!hasValidPortfolioStructure(portfolios)) {
+  if (!isCanonicalPortfolioMap(portfolios)) {
     throw new RangeError(INVALID_PORTFOLIOS_REASON);
   }
   assertValidCards(cards);
@@ -381,7 +354,7 @@ export function resolveTrade(
       return [participantId, freezePortfolio(portfolio)];
     }),
   )) as PortfolioMap;
-  if (!hasValidPortfolioStructure(nextPortfolios)) {
+  if (!isCanonicalPortfolioMap(nextPortfolios)) {
     throw new RangeError(INVALID_PORTFOLIOS_REASON);
   }
   return Object.freeze({ portfolios: nextPortfolios, event });
