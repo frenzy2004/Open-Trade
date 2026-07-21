@@ -235,3 +235,9 @@ Date: 2026-07-21
 - Follow-on failure: in the 54-case local E2E run, the touch offline scenario exceeded Playwright's generic 30-second limit while the CPU-heavy deterministic Runner case executed concurrently. The same desktop/touch offline pair passed together in 14.4 seconds when isolated.
 - Recovery: give the comprehensive offline scenario a 90-second test-specific ceiling while keeping all ordinary tests at 30 seconds. Do not weaken its assertions or retries.
 - Rule: test dependencies must be recreated on a clean runner, and a timeout should reflect the verified worst concurrent workload. Raising a bound is acceptable only after the exact scenario passes in isolation and the product assertions remain unchanged.
+
+### Vercel clean-build parity
+
+- Failure: the first Vercel production attempt created the isolated `open-trade` project but stopped during `npm run build:vercel`; its framework install phase ran `npm install` only, so the Python image gate again had no Pillow. The failed deployment was never promoted.
+- Recovery: `vercel.json` now installs npm packages and the same pinned Python requirements before the build. A `.vercelignore` excludes local generation frames, raw media, reports, and prior build output so deployment uploads contain only reproducible source inputs.
+- Rule: CI setup does not configure a hosting provider's independent builder. Every clean deployment environment needs an explicit dependency contract, and a failed build must never be treated as a usable URL.

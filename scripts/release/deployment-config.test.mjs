@@ -21,6 +21,10 @@ test('ships matching install colors without public production source maps', () =
 test('keeps Vercel linkage local and sends a restrictive browser policy', () => {
   assert.match(read('.gitignore'), /^\.vercel\/$/mu)
   const config = JSON.parse(read('vercel.json'))
+  assert.equal(
+    config.installCommand,
+    'npm ci && python -m pip install --requirement requirements-assets.txt',
+  )
   const globalRule = config.headers.find(({ source }) => source === '/(.*)')
   assert.ok(globalRule)
   const headers = new Map(
@@ -34,6 +38,14 @@ test('keeps Vercel linkage local and sends a restrictive browser policy', () => 
     'strict-origin-when-cross-origin',
   )
   assert.match(headers.get('permissions-policy'), /camera=\(\)/u)
+})
+
+test('excludes local generation artifacts from Vercel uploads', () => {
+  const ignore = read('.vercelignore')
+
+  assert.match(ignore, /^work\/$/mu)
+  assert.match(ignore, /^test-results\/$/mu)
+  assert.match(ignore, /^playwright-report\/$/mu)
 })
 
 test('allows Phaser to decode same-origin textures through object URLs', () => {

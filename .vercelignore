@@ -1,0 +1,7 @@
+work/
+docs/
+.superpowers/
+test-results/
+playwright-report/
+dist/
+coverage/
