@@ -87,7 +87,9 @@ test('navigates through a lazy hash route and restores hub focus', async ({
   page,
 }) => {
   await page.getByRole('link', { name: 'Play FanStocks' }).click()
-  await expect(page).toHaveURL(/#\/fanstocks$/)
+  await expect(page).toHaveURL(
+    /#\/fanstocks\?seed=[a-z0-9_-]{1,64}&rules=1$/i,
+  )
   await expect(
     page.getByRole('heading', { name: 'Fantasy Stock Leagues', level: 1 }),
   ).toBeVisible()

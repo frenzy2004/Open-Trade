@@ -37,10 +37,11 @@ export class AudioManager {
   private volume = DEFAULT_VOLUME
   private unlocked = false
   private disposed = false
+  private pageSuspended = false
   private unlocking: Promise<boolean> | null = null
   private readonly active = new Map<PlayableAudio, ActiveAudio>()
   private readonly loops = new Map<string, PlayableAudio>()
-  private readonly suspended = new Set<PlayableAudio>()
+  private readonly pausedForSuspend = new Set<PlayableAudio>()
 
   constructor(
     private readonly createAudio: AudioFactory = browserAudioFactory,
@@ -122,6 +123,7 @@ export class AudioManager {
     if (
       this.disposed
       || this.muted
+      || this.pageSuspended
       || typeof src !== 'string'
       || src.length === 0
       || !validGain(gain)
@@ -167,20 +169,23 @@ export class AudioManager {
 
   suspend(): void {
     if (this.disposed) return
+    this.pageSuspended = true
     for (const audio of this.active.keys()) {
       try {
         audio.pause()
       } catch {
         // Continue suspending remaining sounds.
       }
-      this.suspended.add(audio)
+      this.pausedForSuspend.add(audio)
     }
   }
 
   async resume(): Promise<void> {
-    if (this.disposed || this.muted) return
-    const pending = [...this.suspended]
-    this.suspended.clear()
+    if (this.disposed) return
+    this.pageSuspended = false
+    if (this.muted) return
+    const pending = [...this.pausedForSuspend]
+    this.pausedForSuspend.clear()
     for (const audio of pending) {
       if (!this.active.has(audio)) continue
       try {
@@ -196,7 +201,7 @@ export class AudioManager {
     for (const audio of this.active.keys()) this.pauseAndReset(audio)
     this.active.clear()
     this.loops.clear()
-    this.suspended.clear()
+    this.pausedForSuspend.clear()
   }
 
   dispose(): void {
@@ -221,7 +226,7 @@ export class AudioManager {
   private forget(audio: PlayableAudio): void {
     const metadata = this.active.get(audio)
     this.active.delete(audio)
-    this.suspended.delete(audio)
+    this.pausedForSuspend.delete(audio)
     if (
       metadata?.loop === true
       && this.loops.get(metadata.source) === audio

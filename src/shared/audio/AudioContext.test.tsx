@@ -80,4 +80,40 @@ describe('AudioProvider', () => {
     view.unmount()
     expect(loopAudio.pause).toHaveBeenCalledTimes(2)
   })
+
+  it('keeps gesture listeners available until a transient unlock failure recovers', async () => {
+    const blockedUnlock = makeAudio()
+    blockedUnlock.play = vi.fn(() => Promise.reject(new Error('blocked once')))
+    const successfulUnlock = makeAudio()
+    const loopAudio = makeAudio()
+    const queue = [blockedUnlock, successfulUnlock, loopAudio]
+    const manager = new AudioManager(() => {
+      const audio = queue.shift()
+      if (audio === undefined) throw new Error('Unexpected audio allocation')
+      return audio
+    })
+
+    const view = render(
+      <SettingsProvider
+        store={emptySettingsStore()}
+        initialSettings={{ muted: false, reducedMotion: false, volume: 0.7 }}
+      >
+        <AudioProvider manager={manager}>
+          <div>Game</div>
+        </AudioProvider>
+      </SettingsProvider>,
+    )
+
+    fireEvent.pointerDown(document)
+    await waitFor(() => expect(blockedUnlock.play).toHaveBeenCalledOnce())
+    expect(manager.isUnlocked()).toBe(false)
+
+    fireEvent.pointerDown(document)
+    await waitFor(() => expect(loopAudio.play).toHaveBeenCalledOnce())
+    expect(manager.isUnlocked()).toBe(true)
+
+    fireEvent.pointerDown(document)
+    expect(queue).toEqual([])
+    view.unmount()
+  })
 })
