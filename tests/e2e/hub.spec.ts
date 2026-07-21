@@ -28,7 +28,10 @@ async function expectKeyboardFocus(locator: Locator) {
 async function expectHubReady(page: Page) {
   await expect(page).toHaveURL(/#\/$/)
   await expect(
-    page.getByRole('heading', { name: 'Choose your market', level: 1 }),
+    page.getByRole('heading', {
+      name: 'One market week. One complete loop.',
+      level: 1,
+    }),
   ).toBeVisible()
 }
 
@@ -96,7 +99,10 @@ test('navigates through a lazy hash route and restores hub focus', async ({
 
   await page.getByRole('link', { name: 'OpenTrade games' }).click()
   await expect(
-    page.getByRole('heading', { name: 'Choose your market', level: 1 }),
+    page.getByRole('heading', {
+      name: 'One market week. One complete loop.',
+      level: 1,
+    }),
   ).toBeVisible()
   await expect(page.getByRole('main')).toBeFocused()
 })
@@ -252,6 +258,7 @@ test('supports keyboard-only access to settings and how-to content', async ({
   await expectKeyboardFocus(settingsTrigger)
 
   const tabOrder = [
+    page.getByRole('link', { name: 'Start OpenTrade Season' }),
     page.getByRole('link', { name: 'Play FanStocks' }),
     page.getByRole('button', { name: 'How FanStocks works' }),
     page.getByRole('button', { name: 'Reset FanStocks progress' }),

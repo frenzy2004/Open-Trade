@@ -1,12 +1,63 @@
-.hub__hero {
+.hub,
+.hub__season,
+.hub__season-board,
+.hub__market-lab,
+.hub__grid {
+  min-width: 0;
+}
+
+.hub__season {
+  position: relative;
+  isolation: isolate;
   display: grid;
-  max-width: 58rem;
-  gap: var(--space-3);
-  margin-bottom: var(--space-7);
+  grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.45fr);
+  gap: clamp(var(--space-5), 3vw, var(--space-7));
+  overflow: hidden;
+  padding: clamp(var(--space-5), 4vw, var(--space-7));
+  border: 3px solid var(--color-ink);
+  border-radius: calc(var(--radius-lg) + 0.5rem);
+  background: var(--color-ink);
+  color: var(--color-paper);
+  box-shadow: 0 1.25rem 0 rgb(23 21 18 / 0.14);
+}
+
+.hub__season::before,
+.hub__season::after {
+  position: absolute;
+  z-index: -1;
+  border-radius: 50%;
+  content: '';
+}
+
+.hub__season::before {
+  top: -11rem;
+  left: -9rem;
+  width: 25rem;
+  height: 25rem;
+  background: rgb(244 197 66 / 0.18);
+}
+
+.hub__season::after {
+  right: -7rem;
+  bottom: -10rem;
+  width: 22rem;
+  height: 22rem;
+  border: 3rem solid rgb(244 197 66 / 0.08);
+}
+
+.hub__hero {
+  z-index: 1;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  align-self: center;
 }
 
 .hub__eyebrow,
-.game-card__eyebrow {
+.game-card__eyebrow,
+.hub__season-kicker {
   margin-bottom: 0;
   font-size: 0.78rem;
   font-weight: 900;
@@ -14,32 +65,203 @@
   text-transform: uppercase;
 }
 
+.hub__season .hub__eyebrow,
+.hub__season-kicker {
+  color: var(--color-market-yellow);
+}
+
 .hub h1 {
-  max-width: 11ch;
+  max-width: 9ch;
   margin-bottom: 0;
   font-family: var(--font-display);
-  font-size: clamp(3rem, 10vw, 7.5rem);
+  font-size: clamp(3rem, 6vw, 5.75rem);
   line-height: 0.88;
   letter-spacing: -0.055em;
 }
 
 .hub__lede {
-  max-width: 48rem;
+  max-width: 37rem;
   margin-bottom: 0;
-  color: var(--color-ink-muted);
-  font-size: clamp(1.05rem, 2vw, 1.35rem);
+  color: #e8dfd0;
+  font-size: clamp(1.05rem, 2vw, 1.28rem);
   line-height: 1.55;
+}
+
+.hub__season-cta {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 3.5rem;
+  align-items: center;
+  justify-content: center;
+  padding-inline: clamp(var(--space-4), 3vw, var(--space-6));
+  font-size: 1.05rem;
+  text-align: center;
+  text-decoration: none;
+}
+
+.hub__season-cta span {
+  margin-left: var(--space-2);
+  font-size: 1.35em;
+}
+
+.hub__season-note {
+  max-width: 32rem;
+  margin: calc(var(--space-2) * -1) 0 0;
+  color: #cfc5b6;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
 }
 
 .hub__disclaimer {
   width: fit-content;
+  max-width: 100%;
   margin-bottom: 0;
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-ink);
+  border: 1px solid rgb(255 250 240 / 0.5);
   border-radius: 999px;
-  background: var(--color-paper);
-  font-size: 0.82rem;
+  background: rgb(255 250 240 / 0.08);
+  color: #eee5d6;
+  font-size: 0.78rem;
   font-weight: 850;
+  line-height: 1.35;
+}
+
+.hub__season-board {
+  position: relative;
+  z-index: 1;
+  align-self: stretch;
+  padding: clamp(var(--space-4), 2.5vw, var(--space-6));
+  border: 2px solid var(--color-ink);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  box-shadow: 0.55rem 0.55rem 0 var(--color-market-yellow);
+}
+
+.hub__season-heading {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-4);
+  border-bottom: 2px solid var(--color-ink);
+}
+
+.hub__season-heading h2,
+.hub__market-lab-heading h2 {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 4vw, 3.65rem);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+}
+
+.hub__season-status {
+  flex: 0 0 auto;
+  padding: var(--space-2) var(--space-3);
+  border: 2px solid var(--color-ink);
+  border-radius: 999px;
+  background: var(--color-market-yellow);
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hub__timeline {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hub__timeline-step {
+  position: relative;
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-ink);
+  border-top-width: 0.45rem;
+  border-radius: var(--radius-md);
+  background: #fff;
+}
+
+.hub__timeline-step:nth-child(1) { border-top-color: var(--color-market-yellow); }
+.hub__timeline-step:nth-child(2) { border-top-color: var(--color-gain-green); }
+.hub__timeline-step:nth-child(3) { border-top-color: var(--color-signal-red); }
+.hub__timeline-step:nth-child(4) { border-top-color: var(--color-focus); }
+
+.hub__timeline-index {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  margin-bottom: var(--space-4);
+  border: 1px solid var(--color-ink);
+  border-radius: 50%;
+  background: var(--color-market-yellow);
+  font-size: 0.7rem;
+  font-weight: 950;
+}
+
+.hub__timeline-day,
+.hub__timeline-phase,
+.hub__timeline-detail {
+  margin-bottom: 0;
+  overflow-wrap: anywhere;
+}
+
+.hub__timeline-day {
+  min-height: 2.2em;
+  color: var(--color-ink-muted);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.hub__timeline-phase {
+  margin-top: var(--space-1);
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 2vw, 1.65rem);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.hub__timeline-detail {
+  margin-top: var(--space-3);
+  color: var(--color-ink-muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.hub__market-lab {
+  margin-top: clamp(var(--space-7), 7vw, 5rem);
+}
+
+.hub__market-lab-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-6);
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-4);
+  border-bottom: 2px solid var(--color-ink);
+}
+
+.hub__market-lab-heading > p {
+  max-width: 34rem;
+  margin-bottom: 0;
+  color: var(--color-ink-muted);
+  font-size: 1.05rem;
+  line-height: 1.5;
 }
 
 .hub__grid {
@@ -137,21 +359,55 @@
   line-height: 1.55;
 }
 
+@media (max-width: 1100px) {
+  .hub__season { grid-template-columns: minmax(0, 1fr); }
+  .hub__hero { max-width: 46rem; }
+}
+
 @media (max-width: 1023px) {
   .hub__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .game-card:last-child { grid-column: 1 / -1; }
 }
 
 @media (max-width: 767px) {
-  .hub__hero { margin-bottom: var(--space-6); }
+  .hub__season {
+    gap: var(--space-6);
+    padding: var(--space-5);
+  }
+
+  .hub__timeline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .hub__market-lab-heading {
+    display: grid;
+    align-items: start;
+    gap: var(--space-3);
+  }
+
   .hub__grid { grid-template-columns: minmax(0, 1fr); }
   .game-card:last-child { grid-column: auto; }
   .game-card__cover { min-height: 11rem; }
 }
 
+@media (max-width: 520px) {
+  .hub__season { padding: var(--space-4); }
+
+  .hub h1 { font-size: clamp(2.7rem, 16vw, 4.4rem); }
+
+  .hub__season-board {
+    padding: var(--space-4);
+    box-shadow: 0.35rem 0.35rem 0 var(--color-market-yellow);
+  }
+
+  .hub__season-heading { align-items: center; }
+  .hub__season-status { padding-inline: var(--space-2); }
+  .hub__timeline { grid-template-columns: minmax(0, 1fr); }
+  .hub__timeline-day { min-height: 0; }
+}
+
 @media (max-width: 374px) {
   .game-card__body { padding: var(--space-4); }
   .hub__disclaimer { border-radius: var(--radius-sm); }
+  .hub__season-cta { width: 100%; }
 }
 
 @media (prefers-reduced-motion: no-preference) {

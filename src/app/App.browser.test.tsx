@@ -10,7 +10,10 @@ test('renders the routed product shell and disclaimer', async () => {
     screen.getByRole('link', { name: 'OpenTrade games' }),
   ).toBeVisible()
   await expect.element(
-    screen.getByRole('heading', { name: 'Choose your market', level: 1 }),
+    screen.getByRole('heading', {
+      name: 'One market week. One complete loop.',
+      level: 1,
+    }),
   ).toBeVisible()
   await expect.element(
     screen

@@ -21,12 +21,64 @@ function getFanStocksRegistration() {
   return registration
 }
 
+test('leads with one weekly Season ritual before the Market Lab practice modes', async () => {
+  window.location.hash = '#/'
+  const screen = await render(<App />)
+
+  await expect.element(
+    screen.getByRole('heading', {
+      name: 'One market week. One complete loop.',
+      level: 1,
+    }),
+  ).toBeVisible()
+  await expect.element(screen.getByText('One weekly ritual')).toBeVisible()
+  const season = screen.getByRole('region', { name: 'OpenTrade Season' })
+  const startSeason = season.getByRole('link', {
+    name: 'Start OpenTrade Season',
+  })
+  await expect.element(startSeason).toBeVisible()
+  await expect.element(startSeason).toHaveAttribute('href', '#/season')
+
+  const timeline = season.getByRole('list', {
+    name: 'OpenTrade Season weekly timeline',
+  })
+  await expect.element(timeline.getByText('Monday')).toBeVisible()
+  await expect.element(timeline.getByText('Draft')).toBeVisible()
+  await expect.element(timeline.getByText('Tuesday–Thursday')).toBeVisible()
+  await expect.element(timeline.getByText('Updates')).toBeVisible()
+  await expect.element(timeline.getByText('Friday')).toBeVisible()
+  await expect.element(timeline.getByText('Settlement')).toBeVisible()
+  await expect.element(timeline.getByText('Weekend')).toBeVisible()
+  await expect.element(timeline.getByText('Receipt & rematch')).toBeVisible()
+
+  const marketLab = screen.getByRole('region', { name: 'Market Lab' })
+  await expect.element(
+    marketLab.getByText('Practice modes', { exact: true }),
+  ).toBeVisible()
+  expect(
+    season.element().compareDocumentPosition(marketLab.element())
+      & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy()
+  await expect.element(
+    marketLab.getByRole('link', { name: 'Play FanStocks' }),
+  ).toBeVisible()
+  await expect.element(
+    marketLab.getByRole('link', { name: 'Play Founder Mode' }),
+  ).toBeVisible()
+  await expect.element(
+    marketLab.getByRole('link', { name: 'Play Wallstreet Surfers' }),
+  ).toBeVisible()
+})
+
 test('renders three complete game cards and opens the how-to dialog', async () => {
   window.location.hash = '#/'
   const screen = await render(<App />)
 
   await expect.element(
-    screen.getByRole('heading', { name: 'Choose your market', level: 1 }),
+    screen.getByRole('heading', {
+      name: 'One market week. One complete loop.',
+      level: 1,
+    }),
   ).toBeVisible()
   await expect.element(
     screen.getByRole('heading', { name: 'FanStocks', level: 2 }),
