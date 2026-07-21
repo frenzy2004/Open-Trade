@@ -1,4 +1,5 @@
 work/
+.venv/
 docs/
 .superpowers/
 test-results/

@@ -23,7 +23,11 @@ test('keeps Vercel linkage local and sends a restrictive browser policy', () => 
   const config = JSON.parse(read('vercel.json'))
   assert.equal(
     config.installCommand,
-    'npm ci && uv pip install --system --requirement requirements-assets.txt',
+    'npm ci && uv venv --python 3.13 .venv && uv pip install --python .venv --requirement requirements-assets.txt',
+  )
+  assert.equal(
+    config.buildCommand,
+    'export PATH="$PWD/.venv/bin:$PATH" && npm run build:vercel',
   )
   const globalRule = config.headers.find(({ source }) => source === '/(.*)')
   assert.ok(globalRule)

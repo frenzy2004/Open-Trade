@@ -5,6 +5,7 @@
 *.pyc
 __pycache__/
 node_modules/
+.venv/
 .vercel/
 dist/
 coverage/

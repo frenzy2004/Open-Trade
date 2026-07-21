@@ -242,4 +242,6 @@ Date: 2026-07-21
 - Recovery: `vercel.json` now installs npm packages and the same pinned Python requirements before the build. A `.vercelignore` excludes local generation frames, raw media, reports, and prior build output so deployment uploads contain only reproducible source inputs.
 - Follow-on failure: Vercel's Python is PEP 668 externally managed by `uv`, so ordinary `python -m pip install` was correctly refused even though the command works in GitHub's setup-python environment.
 - Recovery: the Vercel-specific install command uses its provided `uv pip install --system` interface while retaining the exact same pinned requirements file.
+- Follow-on failure: `--system` then revealed that the Node builder exposes Python 3.9.25, which cannot resolve current Pillow 12.3.0 or NumPy 2.5.1.
+- Recovery: `uv` creates an isolated managed Python 3.13 environment, installs the unchanged pins into it, and the Vercel build prepends only that environment's `bin` directory to `PATH` before running the ordinary asset/build/budget commands.
 - Rule: CI setup does not configure a hosting provider's independent builder. Every clean deployment environment needs an explicit dependency contract, and a failed build must never be treated as a usable URL.
