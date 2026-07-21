@@ -13,11 +13,13 @@ import {
 import {
   createDefaultFounderSave,
   founderStore,
+  nextStreak,
   progressBadgeForFounderSave,
   type FounderSaveV1,
 } from './persistence/founderSave'
 import { EpisodeArchive } from './ui/EpisodeArchive'
 import { FounderDecision } from './ui/FounderDecision'
+import { FounderEnding } from './ui/FounderEnding'
 import { FounderIntro } from './ui/FounderIntro'
 import { FounderLanding } from './ui/FounderLanding'
 import { FounderOutcome } from './ui/FounderOutcome'
@@ -130,6 +132,24 @@ export function FounderModeRoute() {
     if (!save.activeRun) return
     const nextRun = founderReducer(save.activeRun, action, episode)
     if (nextRun !== save.activeRun) {
+      const completedNow =
+        save.activeRun.phase !== 'ending' && nextRun.phase === 'ending'
+      if (completedNow) {
+        const today = new Date().toISOString().slice(0, 10)
+        persist(
+          Object.freeze({
+            ...save,
+            streakDays: nextStreak(
+              save.lastCompletedDate,
+              save.streakDays,
+              today,
+            ),
+            lastCompletedDate: today,
+            activeRun: nextRun,
+          }),
+        )
+        return
+      }
       persist(Object.freeze({ ...save, activeRun: nextRun }))
     }
   }
@@ -165,11 +185,16 @@ export function FounderModeRoute() {
           onContinue={() => actOnRun({ type: 'NEXT' })}
         />
       ) : save.activeRun?.phase === 'ending' ? (
-        <section className="founder-screen founder-ready" aria-labelledby="ready-title">
-          <div className="founder-kicker">Episode complete</div>
-          <h1 id="ready-title">Results are being calculated</h1>
-          <p>Your five board decisions are locked in.</p>
-        </section>
+        <FounderEnding
+          episode={episode}
+          run={save.activeRun}
+          streakDays={save.streakDays}
+          onReplay={() => actOnRun({ type: 'REPLAY' })}
+          onOpenArchive={() => {
+            persist(Object.freeze({ ...save, activeRun: null }))
+            setView('archive')
+          }}
+        />
       ) : view === 'archive' ? (
         <EpisodeArchive
           episodes={founderEpisodes}
