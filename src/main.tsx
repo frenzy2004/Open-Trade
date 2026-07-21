@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './app/App'
+import { registerOpenTradeServiceWorker } from './shared/pwa/register-service-worker'
 import './styles/global.css'
 import './shared/ui/ui.css'
 import './shared/settings/settings.css'
@@ -18,3 +19,5 @@ createRoot(rootElement).render(
     <App />
   </StrictMode>,
 )
+
+void registerOpenTradeServiceWorker()
