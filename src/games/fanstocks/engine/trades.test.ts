@@ -41,6 +41,12 @@ function presentOffer(offer: TradeOffer | null): TradeOffer {
   return offer;
 }
 
+function canonicalCard(ticker: string): StockCard {
+  const card = STOCKS.find((candidate) => candidate.ticker === ticker);
+  if (card === undefined) throw new Error(`Missing canonical card fixture: ${ticker}`);
+  return card;
+}
+
 function withUnknownRosterTicker(participantId: AiId): PortfolioMap {
   return {
     ...portfolios,
@@ -238,6 +244,73 @@ describe('FanStocks trade offers', () => {
         10,
         createSeededRng('invalid-unrelated-registry'),
       )).toThrow('Card registry must contain all 12 canonical FanStocks cards exactly once');
+    }
+  });
+
+  it.each([
+    [
+      'momentumBias',
+      (card: StockCard): StockCard => ({
+        ...card,
+        momentumBias: card.momentumBias + 0.01,
+      }),
+    ],
+    [
+      'company content',
+      (card: StockCard): StockCard => ({
+        ...card,
+        company: `${card.company} Substitute`,
+      }),
+    ],
+    [
+      'ordered evidence content',
+      (card: StockCard): StockCard => ({
+        ...card,
+        evidence: [
+          'Substituted evidence bullet',
+          card.evidence[1],
+          card.evidence[2],
+        ],
+      }),
+    ],
+  ] as const)(
+    'rejects a same-ticker canonical record with altered %s',
+    (_label, substitute) => {
+      const amzn = canonicalCard('AMZN');
+      const substitutedCards = STOCKS.map((card) => (
+        card.ticker === amzn.ticker ? substitute(card) : card
+      ));
+
+      expect(() => createIncomingTrade(
+        portfolios,
+        'momentum',
+        substitutedCards,
+        frame,
+        10,
+        createSeededRng('substituted-card'),
+      )).toThrow('Card registry must structurally match canonical FanStocks cards');
+    },
+  );
+
+  it('accepts a registry of structurally equal deep clones', () => {
+    const clonedCards: readonly StockCard[] = STOCKS.map((card) => ({
+      ...card,
+      evidence: [...card.evidence],
+    }));
+
+    const offer = createIncomingTrade(
+      portfolios,
+      'momentum',
+      clonedCards,
+      frame,
+      10,
+      createSeededRng('structural-clones'),
+    );
+
+    expect(offer).not.toBeNull();
+    for (const [index, clone] of clonedCards.entries()) {
+      expect(clone).not.toBe(STOCKS[index]);
+      expect(clone.evidence).not.toBe(STOCKS[index]?.evidence);
     }
   });
 

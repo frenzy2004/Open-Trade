@@ -31,8 +31,12 @@ const TRADE_STATUSES = new Set<TradeEvent['status']>([
 ]);
 const CANONICAL_TICKERS = Object.freeze(STOCKS.map(({ ticker }) => ticker));
 const CANONICAL_TICKER_SET = new Set<Ticker>(CANONICAL_TICKERS);
+const CANONICAL_CARD_BY_TICKER = new Map(
+  STOCKS.map((card) => [card.ticker, card] as const),
+);
 const INVALID_PORTFOLIOS_REASON = `Portfolios must contain exactly ${FANSTOCKS_RULES.cardsPerPortfolio} unique tickers each with no duplicates across participants`;
 const INVALID_CARD_COVERAGE_REASON = `Card registry must contain all ${CANONICAL_TICKERS.length} canonical FanStocks cards exactly once`;
+const INVALID_CARD_STRUCTURE_REASON = 'Card registry must structurally match canonical FanStocks cards';
 
 function validateOfferShape(offer: TradeOffer): TradeValidation {
   const candidate = (
@@ -111,6 +115,26 @@ function assertCompleteCanonicalCardRegistry(cards: readonly StockCard[]): void 
   if (!hasExactCanonicalTickerCoverage(cards.map(({ ticker }) => ticker))) {
     throw new RangeError(INVALID_CARD_COVERAGE_REASON);
   }
+  if (cards.some((card) => {
+    const canonical = CANONICAL_CARD_BY_TICKER.get(card.ticker);
+    return canonical === undefined || !cardsAreStructurallyEqual(card, canonical);
+  })) {
+    throw new RangeError(INVALID_CARD_STRUCTURE_REASON);
+  }
+}
+
+function cardsAreStructurallyEqual(left: StockCard, right: StockCard): boolean {
+  return left.ticker === right.ticker
+    && left.company === right.company
+    && left.sector === right.sector
+    && left.volatility === right.volatility
+    && left.momentumBias === right.momentumBias
+    && left.correlationGroup === right.correlationGroup
+    && left.thesis === right.thesis
+    && left.evidence.length === right.evidence.length
+    && left.evidence.every((bullet, index) => bullet === right.evidence[index])
+    && left.artworkKey === right.artworkKey
+    && left.syntheticDemo === right.syntheticDemo;
 }
 
 function getCard(
