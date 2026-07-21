@@ -6,22 +6,20 @@ import {
   resetGameProgress,
 } from '../../app/routes/progressStore'
 import type { GameRouteModule } from '../../app/routes/types'
-import { clearStoredGame } from '../../shared/persistence/gameStore'
 import { parseChallenge } from '../../shared/routing/challenge'
-import { GameFoundationPage } from '../GameFoundationPage'
-
-const SAVE_KEY = 'open-trade:game:founder-mode'
+import { FounderModeRoute } from './FounderModeRoute'
+import { FOUNDER_SAVE_KEY, founderStore } from './persistence/founderSave'
 
 function FounderModeEntry() {
-  return <GameFoundationPage metadata={FOUNDER_MODE_METADATA} />
+  return <FounderModeRoute />
 }
 
 export const gameRoute: GameRouteModule = {
   metadata: FOUNDER_MODE_METADATA,
   Entry: FounderModeEntry,
-  saveKey: SAVE_KEY,
+  saveKey: FOUNDER_SAVE_KEY,
   reset: () => {
-    const cleared = clearStoredGame(SAVE_KEY)
+    const cleared = founderStore.clear()
     if (!cleared.ok) {
       throw new Error('Founder Mode game save reset failed: ' + cleared.reason)
     }
