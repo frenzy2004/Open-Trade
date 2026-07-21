@@ -187,9 +187,19 @@ export class AudioManager {
     const pending = [...this.pausedForSuspend]
     this.pausedForSuspend.clear()
     for (const audio of pending) {
+      if (this.pageSuspended) return
       if (!this.active.has(audio)) continue
       try {
         await audio.play()
+        if (this.pageSuspended) {
+          try {
+            audio.pause()
+          } catch {
+            // The next visible resume still retries the remaining audio.
+          }
+          this.pausedForSuspend.add(audio)
+          return
+        }
       } catch {
         this.pauseAndReset(audio)
         this.forget(audio)
