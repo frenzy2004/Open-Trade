@@ -17,8 +17,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE_URLS))
-      .then(() => self.skipWaiting()),
+      .then((cache) => cache.addAll(PRECACHE_URLS)),
   )
 })
 
@@ -30,8 +29,7 @@ self.addEventListener('activate', (event) => {
         keys
           .filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
           .map((key) => caches.delete(key)),
-      ))
-      .then(() => self.clients.claim()),
+      )),
   )
 })
 
@@ -59,7 +57,62 @@ function isLocalMediaRequest(request, url) {
     'image',
     'audio',
   ].includes(request.destination)
-    || /\.(?:css|js|mjs|woff2?|png|webp|svg|ico|ogg)(?:$|\?)/i.test(url.pathname)
+    || /\.(?:css|js|mjs|woff2?|png|webp|svg|ico|ogg|webmanifest)(?:$|\?)/i
+      .test(url.pathname)
+}
+
+function parseByteRange(value, size) {
+  const match = /^bytes=(\d*)-(\d*)$/u.exec(value.trim())
+  if (match === null || size <= 0) return null
+  const [, rawStart, rawEnd] = match
+  if (rawStart === '' && rawEnd === '') return null
+
+  if (rawStart === '') {
+    const suffixLength = Number(rawEnd)
+    if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) return null
+    return {
+      start: Math.max(0, size - suffixLength),
+      end: size - 1,
+    }
+  }
+
+  const start = Number(rawStart)
+  if (!Number.isSafeInteger(start) || start < 0 || start >= size) return null
+  if (rawEnd === '') return { start, end: size - 1 }
+
+  const requestedEnd = Number(rawEnd)
+  if (!Number.isSafeInteger(requestedEnd) || requestedEnd < start) return null
+  return { start, end: Math.min(requestedEnd, size - 1) }
+}
+
+async function matchCachedResponse(request) {
+  const cached = await caches.match(request, { ignoreVary: true })
+  if (cached === undefined) return undefined
+
+  const rangeHeader = request.headers.get('range')
+  if (rangeHeader === null || cached.status !== 200) return cached
+
+  const body = await cached.arrayBuffer()
+  const range = parseByteRange(rangeHeader, body.byteLength)
+  const headers = new Headers(cached.headers)
+  headers.set('Accept-Ranges', 'bytes')
+  if (range === null) {
+    headers.set('Content-Range', `bytes */${body.byteLength}`)
+    headers.set('Content-Length', '0')
+    return new Response(null, { status: 416, headers })
+  }
+
+  const partial = body.slice(range.start, range.end + 1)
+  headers.set(
+    'Content-Range',
+    `bytes ${range.start}-${range.end}/${body.byteLength}`,
+  )
+  headers.set('Content-Length', String(partial.byteLength))
+  return new Response(partial, {
+    status: 206,
+    statusText: 'Partial Content',
+    headers,
+  })
 }
 
 self.addEventListener('fetch', (event) => {
@@ -87,6 +140,7 @@ self.addEventListener('fetch', (event) => {
   })
   event.waitUntil(refresh.then(() => undefined, () => undefined))
   event.respondWith(
-    caches.match(request).then((cached) => cached ?? refresh),
+    matchCachedResponse(request)
+      .then((cached) => cached ?? refresh),
   )
 })

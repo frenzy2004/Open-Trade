@@ -7,14 +7,8 @@ const ROUTES = [
   { hash: '/wallstreet-surfers', heading: 'Wallstreet Surfers' },
 ] as const
 
-async function waitForServiceWorkerControl() {
+async function waitForServiceWorkerReady() {
   await navigator.serviceWorker.ready
-  if (navigator.serviceWorker.controller !== null) return
-  await new Promise<void>((resolve) => {
-    navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), {
-      once: true,
-    })
-  })
 }
 
 test('replays the cached hub and every game route after the network is removed', async ({
@@ -39,28 +33,95 @@ test('replays the cached hub and every game route after the network is removed',
   })
 
   await page.goto('/Open-Trade/#/')
-  await page.evaluate(waitForServiceWorkerControl)
+  await page.evaluate(waitForServiceWorkerReady)
+  await page.reload()
+  await expect(
+    page.getByRole('heading', {
+      name: 'Choose your market',
+      level: 1,
+    }),
+  ).toBeVisible()
+  await expect.poll(
+    () => page.evaluate(() => navigator.serviceWorker.controller !== null),
+  ).toBe(true)
 
-  for (const route of ROUTES) {
-    await page.goto(`/Open-Trade/#${route.hash}`)
-    await expect(
-      page.getByRole('heading', { name: route.heading, level: 1 }),
-    ).toBeVisible()
-  }
-
-  const manifestResponse = await page.request.get('/Open-Trade/manifest.webmanifest')
+  const manifestResponse = await page.request.get(
+    '/Open-Trade/manifest.webmanifest',
+  )
   expect(manifestResponse.status()).toBe(200)
+  const manifest = await manifestResponse.json() as { id?: unknown }
+  expect(manifest.id).toBeUndefined()
   const serviceWorkerResponse = await page.request.get('/Open-Trade/sw.js')
   expect(serviceWorkerResponse.status()).toBe(200)
+  const cachedRuntimeUrls = await page.evaluate(async () => {
+    const cacheNames = await caches.keys()
+    const requests = await Promise.all(
+      cacheNames.map(async (cacheName) => (await caches.open(cacheName)).keys()),
+    )
+    return requests.flat().map(({ url }) => url)
+  })
+  expect(cachedRuntimeUrls.some((url) => /\/assets\/route-.*\.css$/u.test(url)))
+    .toBe(true)
+  expect(cachedRuntimeUrls.filter((url) => /\/assets\/.*\.js$/u.test(url)).length)
+    .toBeGreaterThanOrEqual(6)
+  const cachedAudioUrl = cachedRuntimeUrls.find((url) => url.endsWith('.ogg'))
+  expect(cachedAudioUrl).toBeDefined()
 
   await context.setOffline(true)
-  for (const route of ROUTES) {
-    await page.goto(`/Open-Trade/#${route.hash}`, {
-      waitUntil: 'domcontentloaded',
+  const offlineManifestStatus = await page.evaluate(async () => {
+    try {
+      return (await fetch('./manifest.webmanifest')).status
+    } catch {
+      return 0
+    }
+  })
+  expect(offlineManifestStatus).toBe(200)
+  const audioRange = await page.evaluate(async (url) => {
+    const response = await fetch(url, {
+      headers: { Range: 'bytes=0-99' },
     })
-    await expect(
-      page.getByRole('heading', { name: route.heading, level: 1 }),
-    ).toBeVisible()
+    return {
+      acceptRanges: response.headers.get('Accept-Ranges'),
+      bodyLength: (await response.arrayBuffer()).byteLength,
+      contentRange: response.headers.get('Content-Range'),
+      status: response.status,
+    }
+  }, cachedAudioUrl as string)
+  expect(audioRange).toEqual({
+    acceptRanges: 'bytes',
+    bodyLength: 100,
+    contentRange: expect.stringMatching(/^bytes 0-99\/\d+$/u),
+    status: 206,
+  })
+
+  for (const route of ROUTES) {
+    await page.goto(
+      `/Open-Trade/?offline-route=${encodeURIComponent(route.hash)}#${route.hash}`,
+      {
+        waitUntil: 'domcontentloaded',
+      },
+    )
+    const expectedHeading = page.getByRole('heading', {
+      name: route.heading,
+      level: 1,
+    })
+    const routeError = page.getByRole('heading', {
+      name: 'This game hit a snag',
+      level: 1,
+    })
+    await expect.poll(async () => {
+      if (await expectedHeading.isVisible()) return 'ready'
+      if (await routeError.isVisible()) {
+        return [
+          'route-error',
+          ...pageErrors,
+          ...consoleErrors,
+          ...missingResponses,
+          ...failedRequests,
+        ].join('\n')
+      }
+      return 'loading'
+    }).toBe('ready')
     await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible()
     await expect(page.getByRole('main')).toBeVisible()
   }
