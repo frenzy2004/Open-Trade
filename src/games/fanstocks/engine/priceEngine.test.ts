@@ -130,13 +130,35 @@ describe('priceEngine', () => {
     }], poisonRng())).toThrow('Price frame must match the card registry');
   });
 
-  it('rejects empty and unknown portfolios rather than emitting NaN', () => {
+  it.each([
+    { tickers: [] },
+    { tickers: ['XLE'] },
+    { tickers: ['XLE', 'DKNG'] },
+    { tickers: ['XLE', 'DKNG', 'HUBS', 'AMZN'] },
+    { tickers: ['XLE', 'DKNG', 'XLE'] },
+  ])('rejects a portfolio with invalid cardinality or duplicates: $tickers', ({ tickers }) => {
     const frame = createInitialPriceFrame(STOCKS);
 
-    expect(() => portfolioValue({ participantId: 'player', tickers: [] }, frame))
-      .toThrow('Portfolio must contain known tickers');
-    expect(() => portfolioValue({ participantId: 'player', tickers: ['NOPE'] }, frame))
-      .toThrow('Portfolio must contain known tickers');
+    expect(() => portfolioValue({ participantId: 'player', tickers }, frame))
+      .toThrow('Portfolio must contain exactly 3 unique known tickers with finite prices');
+  });
+
+  it('preserves explicit rejection for unknown tickers and non-finite prices', () => {
+    const frame = createInitialPriceFrame(STOCKS);
+    const nonFiniteFrame: PriceFrame = {
+      ...frame,
+      multipliers: { ...frame.multipliers, XLE: Number.NaN },
+    };
+
+    expect(() => portfolioValue({
+      participantId: 'player',
+      tickers: ['XLE', 'DKNG', 'NOPE'],
+    }, frame)).toThrow(
+      'Portfolio must contain exactly 3 unique known tickers with finite prices',
+    );
+    expect(() => portfolioValue(PLAYER_PORTFOLIO, nonFiniteFrame)).toThrow(
+      'Portfolio must contain exactly 3 unique known tickers with finite prices',
+    );
   });
 
   it.each([-1, 61, 0.5, Number.NaN, Number.POSITIVE_INFINITY])(

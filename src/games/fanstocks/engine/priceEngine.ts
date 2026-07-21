@@ -14,6 +14,7 @@ const MIN_MULTIPLIER = 0.65;
 const MAX_MULTIPLIER = 1.45;
 const MIN_RETURN = -0.035;
 const MAX_RETURN = 0.035;
+const INVALID_PORTFOLIO_MESSAGE = `Portfolio must contain exactly ${FANSTOCKS_RULES.cardsPerPortfolio} unique known tickers with finite prices`;
 
 const clamp = (value: number, min: number, max: number) => (
   Math.min(max, Math.max(min, value))
@@ -132,21 +133,22 @@ export function advancePriceFrame(
 
 export function portfolioValue(portfolio: Portfolio, frame: PriceFrame): number {
   if (
-    portfolio.tickers.length === 0
+    portfolio.tickers.length !== FANSTOCKS_RULES.cardsPerPortfolio
+    || new Set(portfolio.tickers).size !== portfolio.tickers.length
     || portfolio.tickers.some((ticker) => (
       !Object.hasOwn(frame.multipliers, ticker)
       || typeof frame.multipliers[ticker] !== 'number'
       || !Number.isFinite(frame.multipliers[ticker])
     ))
   ) {
-    throw new RangeError('Portfolio must contain known tickers');
+    throw new RangeError(INVALID_PORTFOLIO_MESSAGE);
   }
 
   const average = portfolio.tickers.reduce(
     (sum, ticker) => {
       const multiplier = frame.multipliers[ticker];
       if (multiplier === undefined) {
-        throw new RangeError('Portfolio must contain known tickers');
+        throw new RangeError(INVALID_PORTFOLIO_MESSAGE);
       }
       return sum + multiplier;
     },
