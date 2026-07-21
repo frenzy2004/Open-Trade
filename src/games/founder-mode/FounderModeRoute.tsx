@@ -5,7 +5,11 @@ import { asset } from '../../assets/catalog'
 import { Button } from '../../shared/ui/Button'
 import { founderEpisodeById, founderEpisodes } from './content/episodes'
 import type { WritingStyle } from './content/types'
-import { createFounderRun } from './engine/founderState'
+import { founderReducer } from './engine/founderReducer'
+import {
+  createFounderRun,
+  type FounderAction,
+} from './engine/founderState'
 import {
   createDefaultFounderSave,
   founderStore,
@@ -13,7 +17,10 @@ import {
   type FounderSaveV1,
 } from './persistence/founderSave'
 import { EpisodeArchive } from './ui/EpisodeArchive'
+import { FounderDecision } from './ui/FounderDecision'
+import { FounderIntro } from './ui/FounderIntro'
 import { FounderLanding } from './ui/FounderLanding'
+import { FounderOutcome } from './ui/FounderOutcome'
 import './founder-mode.css'
 
 type RouteView = 'landing' | 'archive'
@@ -119,6 +126,13 @@ export function FounderModeRoute() {
   const play = () => {
     persist(Object.freeze({ ...save, activeRun: createFounderRun(episode, save.style) }))
   }
+  const actOnRun = (action: FounderAction) => {
+    if (!save.activeRun) return
+    const nextRun = founderReducer(save.activeRun, action, episode)
+    if (nextRun !== save.activeRun) {
+      persist(Object.freeze({ ...save, activeRun: nextRun }))
+    }
+  }
 
   return (
     <div className="founder-mode" style={founderModeStyle}>
@@ -132,18 +146,29 @@ export function FounderModeRoute() {
           {notice}
         </p>
       ) : null}
-      {save.activeRun ? (
+      {save.activeRun?.phase === 'intro' ? (
+        <FounderIntro
+          episode={episode}
+          style={save.activeRun.style}
+          onTakeChair={() => actOnRun({ type: 'TAKE_CHAIR' })}
+        />
+      ) : save.activeRun?.phase === 'decision' ? (
+        <FounderDecision
+          episode={episode}
+          run={save.activeRun}
+          onChoose={(choiceId) => actOnRun({ type: 'CHOOSE', choiceId })}
+        />
+      ) : save.activeRun?.phase === 'outcome' ? (
+        <FounderOutcome
+          episode={episode}
+          run={save.activeRun}
+          onContinue={() => actOnRun({ type: 'NEXT' })}
+        />
+      ) : save.activeRun?.phase === 'ending' ? (
         <section className="founder-screen founder-ready" aria-labelledby="ready-title">
-          <div className="founder-kicker">Episode {episode.episodeNumber}</div>
-          <h1 id="ready-title">The boardroom is ready</h1>
-          <p>{episode.company}</p>
-          <p>Your seat is waiting. The decision loop arrives next.</p>
-          <Button
-            variant="secondary"
-            onClick={() => persist(Object.freeze({ ...save, activeRun: null }))}
-          >
-            Return to episode
-          </Button>
+          <div className="founder-kicker">Episode complete</div>
+          <h1 id="ready-title">Results are being calculated</h1>
+          <p>Your five board decisions are locked in.</p>
         </section>
       ) : view === 'archive' ? (
         <EpisodeArchive

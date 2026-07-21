@@ -79,6 +79,187 @@
   line-height: 1.6;
 }
 
+.founder-value-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.founder-value-card > div {
+  min-width: 9rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgb(247 241 227 / 16%);
+  border-radius: 0.85rem;
+  background: rgb(255 255 255 / 5%);
+}
+
+.founder-value-card dt {
+  color: rgb(247 241 227 / 66%);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.founder-value-card dd {
+  margin: 0.2rem 0 0;
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+
+.founder-run-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.founder-decision-count,
+.founder-current-value {
+  margin: 0.3rem 0;
+  font-weight: 800;
+}
+
+.founder-current-value {
+  text-align: right;
+}
+
+.founder-current-value strong {
+  display: block;
+  color: #f7d784;
+  font-size: 1.35rem;
+}
+
+.founder-decision .ui-progress {
+  margin: 1rem 0;
+}
+
+.founder-decision h1 {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+}
+
+.founder-dilemma {
+  max-width: 62rem;
+  margin: 0.75rem 0 1rem;
+  color: var(--founder-ivory);
+  font-size: clamp(1.05rem, 2vw, 1.25rem);
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.founder-choice-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.founder-choice-fieldset legend {
+  margin-bottom: 0.55rem;
+  color: rgb(247 241 227 / 66%);
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.founder-choice-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.founder-choice-card.ui-button {
+  display: grid;
+  min-height: 7.5rem;
+  grid-template-columns: 2rem 1fr;
+  align-items: start;
+  gap: 0.5rem;
+  padding: 0.9rem;
+  text-align: left;
+  white-space: normal;
+}
+
+.founder-choice-card > span {
+  display: grid;
+  width: 1.7rem;
+  height: 1.7rem;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--founder-gold);
+  color: var(--founder-ink);
+  font-weight: 900;
+}
+
+.founder-choice-card strong {
+  line-height: 1.25;
+}
+
+.founder-outcome h1 {
+  font-size: clamp(2.25rem, 6vw, 4.5rem);
+}
+
+.founder-outcome-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(16rem, 0.75fr);
+  gap: clamp(1rem, 4vw, 3rem);
+  align-items: center;
+}
+
+.founder-choice-summary {
+  margin: 1rem 0 0.5rem;
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.founder-verdicts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.founder-verdicts p {
+  margin: 0;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid rgb(247 241 227 / 22%);
+  border-radius: 0.5rem;
+  font-weight: 800;
+}
+
+.founder-value-result {
+  margin: 0.75rem 0;
+  color: #f7d784;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.founder-valuation-chart {
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid rgb(247 241 227 / 16%);
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 5%);
+}
+
+.founder-valuation-chart text {
+  fill: var(--founder-ivory);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.founder-chart-axis {
+  stroke: rgb(247 241 227 / 35%);
+  stroke-width: 1;
+}
+
+.founder-chart-bar--reality {
+  fill: #9b968b;
+}
+
+.founder-chart-bar--player {
+  fill: var(--founder-gold);
+}
+
 .founder-streak {
   display: inline-flex;
   margin: 1rem 0;
@@ -167,6 +348,19 @@
   }
 
   .founder-episode-list {
+    grid-template-columns: 1fr;
+  }
+
+  .founder-run-header,
+  .founder-outcome-grid {
+    display: block;
+  }
+
+  .founder-current-value {
+    text-align: left;
+  }
+
+  .founder-choice-list {
     grid-template-columns: 1fr;
   }
 
