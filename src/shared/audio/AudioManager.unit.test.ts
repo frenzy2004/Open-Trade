@@ -153,6 +153,42 @@ describe('AudioManager', () => {
     expect(factory).toHaveBeenCalledOnce()
   })
 
+  it('does not continue a stale resume after the page is suspended again', async () => {
+    let finishFirstResume: (() => void) | undefined
+    const delayedResume = new Promise<void>((resolve) => {
+      finishFirstResume = resolve
+    })
+    const firstPlay = vi
+      .fn<() => Promise<void>>()
+      .mockResolvedValueOnce()
+      .mockImplementationOnce(() => delayedResume)
+      .mockResolvedValueOnce()
+    const secondPlay = vi.fn<() => Promise<void>>().mockResolvedValue()
+    const first = makeAudio(firstPlay)
+    const second = makeAudio(secondPlay)
+    const queue = [first, second]
+    const manager = new AudioManager(() => {
+      const next = queue.shift()
+      if (next === undefined) throw new Error('No audio left')
+      return next
+    })
+    await manager.play('/audio/first.ogg')
+    await manager.play('/audio/second.ogg')
+
+    manager.suspend()
+    const staleResume = manager.resume()
+    await vi.waitFor(() => expect(firstPlay).toHaveBeenCalledTimes(2))
+    manager.suspend()
+    finishFirstResume?.()
+    await staleResume
+
+    expect(secondPlay).toHaveBeenCalledOnce()
+    expect(first.pause).toHaveBeenCalledTimes(3)
+    await manager.resume()
+    expect(firstPlay).toHaveBeenCalledTimes(3)
+    expect(secondPlay).toHaveBeenCalledTimes(2)
+  })
+
   it('disposes all audio and refuses later playback', async () => {
     const playable = makeAudio()
     const factory = vi.fn<AudioFactory>(() => playable)
