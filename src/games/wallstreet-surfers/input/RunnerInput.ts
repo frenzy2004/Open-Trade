@@ -21,6 +21,16 @@ const GAMEPAD_JUMP = 1 << 2
 const GAMEPAD_ROLL = 1 << 3
 const GAMEPAD_PAUSE = 1 << 4
 const MAX_SCANNED_GAMEPADS = 16
+const EMPTY_GAMEPADS = Object.freeze([]) as readonly (RunnerGamepadLike | null)[]
+const INTERACTIVE_SELECTOR = [
+  'input',
+  'select',
+  'textarea',
+  'button',
+  'a[href]',
+  '[contenteditable]:not([contenteditable="false"])',
+  '[role="button"]',
+].join(',')
 
 export interface RunnerGamepadButtonLike {
   pressed: boolean
@@ -44,14 +54,48 @@ interface PointerLike {
   readonly isPrimary?: boolean
 }
 
-function defaultGetGamepads(): readonly (RunnerGamepadLike | null)[] {
+function defaultGetGamepads(): ArrayLike<RunnerGamepadLike | null> {
   if (
     typeof navigator === 'undefined'
     || typeof navigator.getGamepads !== 'function'
   ) {
-    return []
+    return EMPTY_GAMEPADS
   }
-  return Array.from(navigator.getGamepads())
+  return navigator.getGamepads() as unknown as ArrayLike<RunnerGamepadLike | null>
+}
+
+function openModalExists(): boolean {
+  return typeof document !== 'undefined'
+    && document.querySelector(
+      'dialog[open], [role="dialog"][aria-modal="true"]',
+    ) !== null
+}
+
+function isContentEditableTarget(target: Element): boolean {
+  let current: Element | null = target
+  while (current !== null) {
+    if (
+      current instanceof HTMLElement
+      && (
+        current.isContentEditable === true
+        || (
+          typeof current.contentEditable === 'string'
+          && current.contentEditable.toLowerCase() === 'true'
+        )
+      )
+    ) {
+      return true
+    }
+    current = current.parentElement
+  }
+  return false
+}
+
+function eventBelongsToInterface(event: Event): boolean {
+  if (event.defaultPrevented || openModalExists()) return true
+  if (!(event.target instanceof Element)) return false
+  return event.target.closest(INTERACTIVE_SELECTOR) !== null
+    || isContentEditableTarget(event.target)
 }
 
 function isPressed(gamepad: RunnerGamepadLike, index: number): boolean {
@@ -104,12 +148,13 @@ export class RunnerInput {
   private readonly handleKeyDown = (rawEvent: Event) => {
     const event = rawEvent as KeyboardEvent
     const command = KEYBOARD_COMMANDS[event.code]
-    if (command === undefined) return
+    if (command === undefined || eventBelongsToInterface(event)) return
     event.preventDefault()
     if (!event.repeat) this.dispatch(command)
   }
 
   private readonly handlePointerDown = (event: Event) => {
+    if (eventBelongsToInterface(event)) return
     const pointer = asPointer(event)
     if (pointer === null || pointer.isPrimary === false) return
     this.pointerStart = {
@@ -142,7 +187,8 @@ export class RunnerInput {
     const pointer = asPointer(event)
     const start = this.pointerStart
     if (
-      pointer === null
+      eventBelongsToInterface(event)
+      || pointer === null
       || pointer.isPrimary === false
       || start === null
       || start.pointerId !== pointer.pointerId

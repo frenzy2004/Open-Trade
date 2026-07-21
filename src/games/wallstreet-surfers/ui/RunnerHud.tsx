@@ -13,7 +13,7 @@ export function RunnerHud({ state, onPause }: RunnerHudProps) {
       <dl className="runner-hud__stats">
         <div><dt>Score</dt><dd>{state.score.toLocaleString('en-US')}</dd></div>
         <div><dt>Distance</dt><dd>{Math.floor(state.distanceM).toLocaleString('en-US')} m</dd></div>
-        <div><dt>Coins</dt><dd>{state.coins.toLocaleString('en-US')}</dd></div>
+        <div><dt>Coins</dt><dd data-runner-hud="coins">{state.coins.toLocaleString('en-US')}</dd></div>
         <div><dt>Streak</dt><dd>{state.streak.toLocaleString('en-US')}×</dd></div>
         <div>
           <dt>Powell gap</dt>

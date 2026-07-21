@@ -17,6 +17,7 @@
     "test:e2e": "playwright test",
     "check:assets": "node scripts/assets/validate-assets.mjs",
     "check:audio": "python scripts/assets/verify-audio.py",
+    "runner:assets": "node scripts/check-runner-assets.mjs",
     "check": "npm run lint && npm run typecheck && npm test && npm run test:browser && npm run build"
   },
   "dependencies": {
