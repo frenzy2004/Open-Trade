@@ -168,3 +168,33 @@ Date: 2026-07-21
 - Failure: the GitHub CLI executable was not available on the current PowerShell `PATH`, even though authenticated `git push` worked.
 - Recovery: public GitHub Actions pages supplied run status and annotations without exposing credentials.
 - Rule: distinguish missing local tooling from missing repository authority; use a read-only public/API surface for diagnostics and keep credential material out of command output.
+
+### Production media URL transform gap
+
+- Failure: the typed asset catalog passed unit tests while production emitted none of the 16 Higgsfield image/audio files. `new URL(relativeUrl, import.meta.url)` was hidden behind a helper parameter, so Vite could not statically transform the variable URL; the preview server returned its HTML fallback for those media paths and `SafeImage` quietly rendered fallback art.
+- Recovery: every catalog item now uses an explicit `?url` import. A production build emits all ten visual files and six Ogg files with content hashes, while the catalog remains the single typed lookup surface.
+- Rule: a source-local URL is not proof of a bundled asset. Verify the production `dist` inventory and request MIME/status; helper-indirected `new URL` expressions are not statically analyzable by Vite.
+
+### Offline-after-first-load race
+
+- Failure: the first offline E2E failed on the Wallstreet Surfers cover even after every route had been visited online. The image had loaded before the newly installed worker controlled the page, so it existed only in the browser HTTP cache and not the app cache.
+- Recovery: every build now injects its emitted runtime asset list and a content-derived cache version into `sw.js`. Install precaches the application chunks, styles, ten visuals, six audio files, manifest, icons, and shell before claiming clients. Desktop and touch offline route replays then passed with zero console errors or 404s.
+- Rule: runtime caching alone cannot guarantee offline support on the first controlled reload. Precache the exact emitted graph at build time and version it from content.
+
+### Combined verification timeout under parallel reviews
+
+- Failure: one chained Founder verification exceeded a three-minute shell cap while two independent reviewers and another game worker were simultaneously running Vitest/Playwright. Process inspection showed the remaining workers belonged to those active worktrees rather than the terminated root command.
+- Recovery: leave agent-owned processes intact, use unique `PLAYWRIGHT_PORT` values, and run root gates separately after parallel reviews finish.
+- Rule: a harness timeout during CPU-saturated parallel verification is neither a product pass nor failure. Attribute processes by command line, then rerun bounded gates in isolation.
+
+### Independent-review gaps behind green suites
+
+- FanStocks review found clipped live holdings at 320/768 that intro-only responsive tests missed, dialog completion paths that returned focus to `body`, absent Firefox/WebKit smoke projects, mismatched artwork selectors, and an undefined `sr-only` class.
+- Founder review exhaustively enumerated all 243 paths per episode and found Blockbuster locked to Legend while Apple was effectively locked to Cautionary. It also found missing signed valuation deltas/numeric chart labels, absent ruleset compatibility in saves, a 42px source-link target, and missing 768/1440/200% coverage.
+- Rule: green mechanics tests do not replace exhaustive outcome-distribution analysis or screenshots of deep gameplay states. Independent review must probe the real late-state UI at every frozen breakpoint and enumerate small deterministic state spaces completely.
+
+### Additional remote CI proof
+
+- Run `29818777482` verified the repaired FanStocks/shared-shell integration.
+- Run `29819398138` verified complete FanStocks league and responsive coverage plus release-budget tooling.
+- Run `29820272913` verified integrated Founder Mode, emitted/offline-cached Higgsfield media, and the root-safe Vercel build configuration at `9880b9c`.
