@@ -15,7 +15,10 @@ function isRecord(value: unknown): value is Record<PropertyKey, unknown> {
   return typeof value === 'object' && value !== null
 }
 
-function canonicalTickers(value: unknown, limit: number): readonly Ticker[] {
+function normalizeDisplayTickers(
+  value: unknown,
+  limit: number,
+): readonly Ticker[] {
   if (!Array.isArray(value)) {
     return []
   }
@@ -41,11 +44,91 @@ function canonicalTickers(value: unknown, limit: number): readonly Ticker[] {
   return tickers
 }
 
-function selectingRoundIndex(
+interface ExactDraftShape {
+  readonly groups: readonly (readonly Ticker[])[]
+  readonly roundIndex: number
+  readonly picks: readonly Ticker[]
+  readonly inspectedTicker: Ticker | null
+  readonly status: 'selecting' | 'complete'
+}
+
+function exactDraftTopology(
+  value: unknown,
+): readonly (readonly Ticker[])[] | null {
+  if (
+    !Array.isArray(value) ||
+    value.length !== FANSTOCKS_RULES.draftRounds
+  ) {
+    return null
+  }
+
+  const groups: Ticker[][] = []
+  const dealtTickers = new Set<Ticker>()
+  for (const rawGroup of value) {
+    if (
+      !Array.isArray(rawGroup) ||
+      rawGroup.length !== CANDIDATE_COUNT
+    ) {
+      return null
+    }
+
+    const group: Ticker[] = []
+    const groupTickers = new Set<Ticker>()
+    for (const rawTicker of rawGroup) {
+      if (
+        typeof rawTicker !== 'string' ||
+        !STOCK_BY_TICKER.has(rawTicker) ||
+        groupTickers.has(rawTicker) ||
+        dealtTickers.has(rawTicker)
+      ) {
+        return null
+      }
+
+      groupTickers.add(rawTicker)
+      dealtTickers.add(rawTicker)
+      group.push(rawTicker)
+    }
+    groups.push(group)
+  }
+
+  return groups
+}
+
+function exactDraftPicks(
+  value: unknown,
+  expectedLength: number,
+  groups: readonly (readonly Ticker[])[],
+): readonly Ticker[] | null {
+  if (!Array.isArray(value) || value.length !== expectedLength) {
+    return null
+  }
+
+  const picks: Ticker[] = []
+  const pickedTickers = new Set<Ticker>()
+  for (let index = 0; index < value.length; index += 1) {
+    const rawPick: unknown = value[index]
+    const group = groups[index]
+    if (
+      typeof rawPick !== 'string' ||
+      !STOCK_BY_TICKER.has(rawPick) ||
+      pickedTickers.has(rawPick) ||
+      group === undefined ||
+      !group.includes(rawPick)
+    ) {
+      return null
+    }
+
+    pickedTickers.add(rawPick)
+    picks.push(rawPick)
+  }
+
+  return picks
+}
+
+function exactSelectingRound(
   runtimeDraft: Record<PropertyKey, unknown>,
 ): number | null {
   if (
-    runtimeDraft.status !== 'selecting' ||
     typeof runtimeDraft.roundIndex !== 'number' ||
     !Number.isSafeInteger(runtimeDraft.roundIndex) ||
     runtimeDraft.roundIndex < 0 ||
@@ -57,15 +140,74 @@ function selectingRoundIndex(
   return runtimeDraft.roundIndex
 }
 
-function currentCandidateStocks(
+function validateExactDraftShape(
   runtimeDraft: Record<PropertyKey, unknown>,
-): readonly StockCard[] {
-  const roundIndex = selectingRoundIndex(runtimeDraft)
-  if (roundIndex === null) {
-    return []
+): ExactDraftShape | null {
+  const groups = exactDraftTopology(runtimeDraft.groups)
+  if (groups === null) {
+    return null
   }
 
-  const tickers = candidateTickersForRound(runtimeDraft, roundIndex)
+  if (runtimeDraft.status === 'selecting') {
+    const roundIndex = exactSelectingRound(runtimeDraft)
+    if (roundIndex === null) {
+      return null
+    }
+
+    const picks = exactDraftPicks(runtimeDraft.picks, roundIndex, groups)
+    if (picks === null) {
+      return null
+    }
+
+    const currentGroup = groups[roundIndex]
+    const inspectedTicker = runtimeDraft.inspectedTicker
+    if (
+      currentGroup === undefined ||
+      !(
+        inspectedTicker === null ||
+        (typeof inspectedTicker === 'string' &&
+          currentGroup.includes(inspectedTicker))
+      )
+    ) {
+      return null
+    }
+
+    return {
+      groups,
+      roundIndex,
+      picks,
+      inspectedTicker,
+      status: 'selecting',
+    }
+  }
+
+  if (
+    runtimeDraft.status !== 'complete' ||
+    runtimeDraft.roundIndex !== FANSTOCKS_RULES.draftRounds ||
+    runtimeDraft.inspectedTicker !== null
+  ) {
+    return null
+  }
+
+  const picks = exactDraftPicks(
+    runtimeDraft.picks,
+    DRAFT_SLOT_COUNT,
+    groups,
+  )
+  if (picks === null) {
+    return null
+  }
+
+  return {
+    groups,
+    roundIndex: FANSTOCKS_RULES.draftRounds,
+    picks,
+    inspectedTicker: null,
+    status: 'complete',
+  }
+}
+
+function stockCards(tickers: readonly Ticker[]): readonly StockCard[] {
   const stocks: StockCard[] = []
   for (const ticker of tickers) {
     const stock = STOCK_BY_TICKER.get(ticker)
@@ -73,71 +215,7 @@ function currentCandidateStocks(
       stocks.push(stock)
     }
   }
-  return stocks.length === CANDIDATE_COUNT ? stocks : []
-}
-
-function candidateTickersForRound(
-  runtimeDraft: Record<PropertyKey, unknown>,
-  roundIndex: number,
-): readonly Ticker[] {
-  if (!Array.isArray(runtimeDraft.groups)) {
-    return []
-  }
-
-  const tickers = canonicalTickers(
-    runtimeDraft.groups[roundIndex],
-    CANDIDATE_COUNT,
-  )
-  if (tickers.length !== CANDIDATE_COUNT) {
-    return []
-  }
-
-  return tickers
-}
-
-function completedDraftIsConsistent(
-  runtimeDraft: Record<PropertyKey, unknown>,
-  picks: readonly Ticker[],
-): boolean {
-  if (
-    runtimeDraft.status !== 'complete' ||
-    runtimeDraft.roundIndex !== FANSTOCKS_RULES.draftRounds ||
-    picks.length !== DRAFT_SLOT_COUNT
-  ) {
-    return false
-  }
-
-  for (let roundIndex = 0; roundIndex < FANSTOCKS_RULES.draftRounds; roundIndex += 1) {
-    const pick = picks[roundIndex]
-    if (
-      pick === undefined ||
-      !candidateTickersForRound(runtimeDraft, roundIndex).includes(pick)
-    ) {
-      return false
-    }
-  }
-
-  return true
-}
-
-function safeDraftLabel(
-  draft: DraftState,
-  runtimeDraft: Record<PropertyKey, unknown>,
-  picks: readonly Ticker[],
-  candidates: readonly StockCard[],
-): string {
-  if (
-    selectingRoundIndex(runtimeDraft) !== null &&
-    candidates.length === CANDIDATE_COUNT
-  ) {
-    return currentDraftLabel(draft)
-  }
-
-  if (completedDraftIsConsistent(runtimeDraft, picks)) {
-    return currentDraftLabel(draft)
-  }
-
-  return 'Draft unavailable'
+  return stocks
 }
 
 export interface DraftScreenProps {
@@ -159,21 +237,28 @@ export function DraftScreen({
   const runtimeDraft: Record<PropertyKey, unknown> = isRecord(draft)
     ? draft
     : {}
-  const picks = canonicalTickers(runtimeDraft.picks, DRAFT_SLOT_COUNT)
-  const draftedCount = picks.length
-  const candidates = currentCandidateStocks(runtimeDraft)
+  const displayPicks = normalizeDisplayTickers(
+    runtimeDraft.picks,
+    DRAFT_SLOT_COUNT,
+  )
+  const draftedCount = displayPicks.length
+  const exactDraft = validateExactDraftShape(runtimeDraft)
+  const candidates =
+    exactDraft?.status === 'selecting'
+      ? stockCards(exactDraft.groups[exactDraft.roundIndex] ?? [])
+      : []
   const inspectedTicker =
-    typeof runtimeDraft.inspectedTicker === 'string' &&
-    candidates.some(
-      (candidate) => candidate.ticker === runtimeDraft.inspectedTicker,
-    )
-    ? runtimeDraft.inspectedTicker
-    : null
+    exactDraft?.status === 'selecting'
+      ? exactDraft.inspectedTicker
+      : null
   const detail =
     inspectedTicker === null
       ? null
       : (STOCK_BY_TICKER.get(inspectedTicker) ?? null)
-  const label = safeDraftLabel(draft, runtimeDraft, picks, candidates)
+  const label =
+    exactDraft === null
+      ? 'Draft unavailable'
+      : currentDraftLabel(exactDraft)
 
   return (
     <section className="draft-screen" aria-labelledby={headingId}>
@@ -188,12 +273,14 @@ export function DraftScreen({
       <ol className="draft-screen__hand" aria-label="Your drafted stocks">
         {Array.from({ length: DRAFT_SLOT_COUNT }, (_, slot) => (
           <li key={slot}>
-            {picks[slot] ?? `Empty slot ${slot + 1}`}
+            {displayPicks[slot] ?? `Empty slot ${slot + 1}`}
           </li>
         ))}
       </ol>
       <div className="draft-screen__cards">
-        {candidates.length === 0 ? (
+        {exactDraft?.status === 'complete' ? (
+          <p role="status">Draft complete. Preparing the market.</p>
+        ) : candidates.length === 0 ? (
           <p>No stock cards are available for this draft round.</p>
         ) : (
           candidates.map((stock) => (

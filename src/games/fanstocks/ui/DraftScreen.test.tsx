@@ -125,6 +125,16 @@ function expectRenderDoesNotThrow(element: ReactElement) {
   expect(() => render(element)).not.toThrow()
 }
 
+function expectDraftUnavailable() {
+  expect(
+    screen.getByRole('heading', { name: 'Draft unavailable' }),
+  ).toBeVisible()
+  expect(
+    screen.queryByRole('button', { name: /^Read /u }),
+  ).not.toBeInTheDocument()
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+}
+
 describe('FanStocksIntro', () => {
   it('composes under the app main as a single labelled region', () => {
     const { container } = render(
@@ -282,9 +292,10 @@ describe('DraftScreen', () => {
     expect(
       within(hand).getAllByRole('listitem').map((slot) => slot.textContent),
     ).toEqual(['XLE', 'DKNG', 'HUBS'])
+    expectDraftUnavailable()
   })
 
-  it('normalizes candidates to the first three canonical unique tickers', () => {
+  it('does not normalize a polluted candidate group into playable controls', () => {
     const draft = {
       ...selectingDraft,
       groups: [
@@ -294,19 +305,110 @@ describe('DraftScreen', () => {
     } satisfies DraftState
     renderDraft(draft)
 
-    const candidateButtons = screen.getAllByRole('button', {
-      name: /^Read /u,
-    })
-    expect(candidateButtons).toHaveLength(3)
-    expect(candidateButtons.map((button) => button.getAttribute('aria-label')))
-      .toEqual([
-        'Read XLE, Energy Select Sector SPDR Fund',
-        'Read DKNG, DraftKings',
-        'Read HUBS, HubSpot',
-      ])
-    expect(
-      screen.queryByRole('button', { name: 'Read AMZN, Amazon' }),
-    ).not.toBeInTheDocument()
+    expectDraftUnavailable()
+  })
+
+  it.each([
+    {
+      name: 'an extra group',
+      rawGroups: [
+        ...groups,
+        STOCKS.slice(9, 12).map(({ ticker }) => ticker),
+      ],
+    },
+    {
+      name: 'a truncated non-current group',
+      rawGroups: [groups[0], ['AMZN', 'ODFL'], groups[2]],
+    },
+    {
+      name: 'an oversized non-current group',
+      rawGroups: [
+        groups[0],
+        ['AMZN', 'ODFL', 'SBUX', 'SMCI'],
+        groups[2],
+      ],
+    },
+    {
+      name: 'a duplicate inside a non-current group',
+      rawGroups: [groups[0], ['AMZN', 'AMZN', 'SBUX'], groups[2]],
+    },
+    {
+      name: 'an unknown ticker inside a non-current group',
+      rawGroups: [groups[0], ['AMZN', 'UNKNOWN', 'SBUX'], groups[2]],
+    },
+    {
+      name: 'an empty ticker inside a non-current group',
+      rawGroups: [groups[0], ['AMZN', '', 'SBUX'], groups[2]],
+    },
+    {
+      name: 'a non-string ticker inside a non-current group',
+      rawGroups: [groups[0], ['AMZN', null, 'SBUX'], groups[2]],
+    },
+    {
+      name: 'a ticker duplicated across groups',
+      rawGroups: [groups[0], ['XLE', 'ODFL', 'SBUX'], groups[2]],
+    },
+  ])('rejects exact topology with $name', ({ rawGroups }) => {
+    const draft = {
+      ...selectingDraft,
+      groups: rawGroups,
+    } as unknown as DraftState
+    renderDraft(draft)
+
+    expectDraftUnavailable()
+  })
+
+  it.each([
+    {
+      name: 'round two with no prior pick',
+      roundIndex: 1,
+      rawPicks: [],
+    },
+    {
+      name: 'a prior pick from the wrong group',
+      roundIndex: 1,
+      rawPicks: ['AMZN'],
+    },
+    {
+      name: 'an extra pick in round one',
+      roundIndex: 0,
+      rawPicks: ['XLE'],
+    },
+    {
+      name: 'an unknown raw pick normalized away',
+      roundIndex: 1,
+      rawPicks: ['XLE', 'UNKNOWN'],
+    },
+    {
+      name: 'a duplicate raw pick normalized away',
+      roundIndex: 1,
+      rawPicks: ['XLE', 'XLE'],
+    },
+    {
+      name: 'an empty raw pick normalized away',
+      roundIndex: 1,
+      rawPicks: ['XLE', ''],
+    },
+    {
+      name: 'a missing picks array',
+      roundIndex: 0,
+      rawPicks: undefined,
+    },
+  ])('rejects selecting state with $name', ({ roundIndex, rawPicks }) => {
+    const draft = {
+      ...selectingDraft,
+      roundIndex,
+      picks: rawPicks,
+    } as unknown as DraftState
+    renderDraft(draft)
+
+    expectDraftUnavailable()
+  })
+
+  it('rejects an inspected ticker outside the exact current group', () => {
+    renderDraft({ ...selectingDraft, inspectedTicker: 'AMZN' })
+
+    expectDraftUnavailable()
   })
 
   it('opens a stock through its semantic native card button', () => {
@@ -420,7 +522,7 @@ describe('DraftScreen', () => {
     ).toBeVisible()
   })
 
-  it('shows Draft complete only for a consistent completed draft', () => {
+  it('shows an accessible transition for an exact completed draft', () => {
     const draft: DraftState = {
       ...selectingDraft,
       roundIndex: 3,
@@ -434,6 +536,12 @@ describe('DraftScreen', () => {
     ).toBeVisible()
     expect(
       screen.queryByRole('button', { name: /^Read /u }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Draft complete. Preparing the market.',
+    )
+    expect(
+      screen.queryByText('No stock cards are available for this draft round.'),
     ).not.toBeInTheDocument()
   })
 
