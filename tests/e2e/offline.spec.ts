@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 
+const BASE_PATH = process.env.PLAYWRIGHT_BASE_PATH ?? '/Open-Trade/'
 const ROUTES = [
   { hash: '/', heading: 'Choose your market' },
   { hash: '/fanstocks', heading: 'Fantasy Stock Leagues' },
@@ -32,7 +33,7 @@ test('replays the cached hub and every game route after the network is removed',
     )
   })
 
-  await page.goto('/Open-Trade/#/')
+  await page.goto(`${BASE_PATH}#/`)
   await page.evaluate(waitForServiceWorkerReady)
   await page.reload()
   await expect(
@@ -46,12 +47,12 @@ test('replays the cached hub and every game route after the network is removed',
   ).toBe(true)
 
   const manifestResponse = await page.request.get(
-    '/Open-Trade/manifest.webmanifest',
+    `${BASE_PATH}manifest.webmanifest`,
   )
   expect(manifestResponse.status()).toBe(200)
   const manifest = await manifestResponse.json() as { id?: unknown }
   expect(manifest.id).toBeUndefined()
-  const serviceWorkerResponse = await page.request.get('/Open-Trade/sw.js')
+  const serviceWorkerResponse = await page.request.get(`${BASE_PATH}sw.js`)
   expect(serviceWorkerResponse.status()).toBe(200)
   const cachedRuntimeUrls = await page.evaluate(async () => {
     const cacheNames = await caches.keys()
@@ -96,7 +97,7 @@ test('replays the cached hub and every game route after the network is removed',
 
   for (const route of ROUTES) {
     await page.goto(
-      `/Open-Trade/?offline-route=${encodeURIComponent(route.hash)}#${route.hash}`,
+      `${BASE_PATH}?offline-route=${encodeURIComponent(route.hash)}#${route.hash}`,
       {
         waitUntil: 'domcontentloaded',
       },

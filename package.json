@@ -7,10 +7,10 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build --base=/Open-Trade/ && node scripts/release/inject-sw-precache.mjs dist",
-    "build:pages": "vite build --base=/Open-Trade/ && node scripts/release/inject-sw-precache.mjs dist",
-    "build:vercel": "vite build --base=/ && node scripts/release/inject-sw-precache.mjs dist",
-    "build:higgsfield": "vite build --base=./ && node scripts/release/inject-sw-precache.mjs dist",
+    "build": "vite build --base=/Open-Trade/ && node scripts/release/inject-sw-precache.mjs dist && node scripts/release/check-budgets.mjs dist",
+    "build:pages": "vite build --base=/Open-Trade/ && node scripts/release/inject-sw-precache.mjs dist && node scripts/release/check-budgets.mjs dist",
+    "build:vercel": "npm run check:assets && vite build --base=/ && node scripts/release/inject-sw-precache.mjs dist && node scripts/release/check-budgets.mjs dist",
+    "build:higgsfield": "vite build --base=./ && node scripts/release/inject-sw-precache.mjs dist && node scripts/release/check-budgets.mjs dist",
     "preview": "vite preview",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc -b",
@@ -18,12 +18,13 @@
     "test:unit": "vitest run --config vitest.config.ts",
     "test:browser": "vitest run --config vitest.browser.config.ts",
     "test:e2e": "playwright test",
-    "test:release-script": "node --test scripts/release/check-budgets.test.mjs scripts/release/inject-sw-precache.test.mjs scripts/release/pwa-shell.test.mjs",
+    "test:deployment-smoke": "node scripts/release/run-deployment-smoke.mjs",
+    "test:release-script": "node --test scripts/release/check-budgets.test.mjs scripts/release/deployment-config.test.mjs scripts/release/inject-sw-precache.test.mjs scripts/release/pwa-shell.test.mjs",
     "check:assets": "node scripts/assets/validate-assets.mjs",
     "check:audio": "python scripts/assets/verify-audio.py",
     "check:release": "node scripts/release/check-budgets.mjs dist",
-    "verify:release": "npm run lint && npm run typecheck && npm test && npm run test:browser && npm run test:release-script && npm run check:assets && npm run check:audio && npm run build:higgsfield && npm run check:release && npm run test:e2e",
-    "check": "npm run lint && npm run typecheck && npm test && npm run test:browser && npm run test:release-script && npm run build"
+    "verify:release": "npm run check && npm run test:e2e && npm run test:deployment-smoke",
+    "check": "npm run lint && npm run typecheck && npm test && npm run test:browser && npm run test:release-script && npm run check:assets && npm run check:audio && npm run build && npm run check:release"
   },
   "dependencies": {
     "react": "^19.2.7",

@@ -98,3 +98,30 @@ test('rejects a file at the strict single-asset limit', () => {
   })
   assert.match(report.errors.join('\n'), /single-asset limit/)
 })
+
+test('bounds initial CSS and keeps a single file below the distribution cap', () => {
+  assert.ok(
+    DEFAULT_THRESHOLDS.singleAssetBytes
+      < DEFAULT_THRESHOLDS.distributionBytes,
+  )
+  const distribution = createDistribution('oversized-css', {
+    'src/main.tsx': {
+      file: 'assets/main.js',
+      isEntry: true,
+      css: ['assets/main.css'],
+    },
+    'src/games/wallstreet-surfers/route.tsx': {
+      file: 'assets/wallstreet-surfers.js',
+    },
+  }, {
+    'assets/main.js': 'export {}',
+    'assets/main.css': 'body{color:red}',
+    'assets/wallstreet-surfers.js': 'export {}',
+  })
+
+  const report = analyzeRelease(distribution, {
+    ...DEFAULT_THRESHOLDS,
+    initialStylesheetGzipBytes: 0,
+  })
+  assert.match(report.errors.join('\n'), /initial application CSS/)
+})

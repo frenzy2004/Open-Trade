@@ -1,7 +1,10 @@
 import { defineConfig, devices } from '@playwright/test'
 
 const previewPort = process.env.PLAYWRIGHT_PORT ?? '4173'
-const previewUrl = `http://127.0.0.1:${previewPort}/Open-Trade/`
+const previewBasePath = process.env.PLAYWRIGHT_BASE_PATH ?? '/Open-Trade/'
+const previewBuildCommand = process.env.PLAYWRIGHT_BUILD_COMMAND
+  ?? 'npm run build'
+const previewUrl = `http://127.0.0.1:${previewPort}${previewBasePath}`
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -35,7 +38,7 @@ export default defineConfig({
   ],
   webServer: {
     command:
-      `npm run build && npm run preview -- --host 127.0.0.1 --port ${previewPort}`,
+      `${previewBuildCommand} && npm run preview -- --host 127.0.0.1 --port ${previewPort} --base ${previewBasePath}`,
     url: previewUrl,
     reuseExistingServer:
       process.env.PLAYWRIGHT_PORT === undefined && !process.env.CI,
