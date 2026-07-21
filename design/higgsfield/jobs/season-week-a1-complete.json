@@ -1,0 +1,29 @@
+{
+  "created_at": "2026-07-21T12:55:35.87494Z",
+  "display_name": "GPT Image 2",
+  "id": "c3adc20c-2684-4d39-bd88-076c77181da9",
+  "job_type": "gpt_image_2",
+  "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3E3Fh0209cVr2vDGdUUsK7GfrWV/hf_20260721_125535_c3adc20c-2684-4d39-bd88-076c77181da9_min.webp",
+  "params": {
+    "aspect_ratio": "16:9",
+    "height": 1520,
+    "medias": [
+      {
+        "data": {
+          "id": "f906f5a7-a118-4f82-91ce-d86171b0d89a",
+          "type": "media_input",
+          "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3E3Fh0209cVr2vDGdUUsK7GfrWV/f906f5a7-a118-4f82-91ce-d86171b0d89a_resize.jpg"
+        },
+        "role": "image"
+      }
+    ],
+    "model": "videotape-alpha",
+    "prompt": "Preserve the entire composition, perspective, three central thesis cards, clockwise ritual arrows, pictograms, palette, lighting, ink texture, and every object exactly. On the upper-left black notebook and the torn grid paper beside it, replace every letter-like or word-like mark with simple abstract dots, chart lines, and geometric shapes matching the surrounding design. Ensure the full image contains zero alphabetic characters, readable words, numerals, logos, brands, watermarks, or signatures. Leave everything else unchanged.",
+    "quality": "high",
+    "reference_elements": [],
+    "resolution": "2k",
+    "width": 2688
+  },
+  "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3E3Fh0209cVr2vDGdUUsK7GfrWV/hf_20260721_125535_c3adc20c-2684-4d39-bd88-076c77181da9.png",
+  "status": "completed"
+}

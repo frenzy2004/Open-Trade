@@ -1,0 +1,20 @@
+{
+  "created_at": "2026-07-21T12:50:29.243344Z",
+  "display_name": "GPT Image 2",
+  "id": "06545fd1-28cb-4c90-b71f-3c8bbdffb144",
+  "job_type": "gpt_image_2",
+  "min_result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3E3Fh0209cVr2vDGdUUsK7GfrWV/hf_20260721_125029_06545fd1-28cb-4c90-b71f-3c8bbdffb144_min.webp",
+  "params": {
+    "aspect_ratio": "16:9",
+    "height": 1520,
+    "medias": [],
+    "model": "videotape-alpha",
+    "prompt": "Typography-free overhead editorial illustration of an uninhabited market-week strategy desk, arranged as a clear clockwise visual ritual. In the center, exactly three warm-cream thesis cards show only large abstract up-or-down arrow icons, six colored confidence pips, geometric reasoning sketches, and movable evidence tabs. Every paper contains only shapes, grids, dots, and unlabeled chart lines. Around them, four pictogram stations form a continuous arc: sunrise disk with three yellow tokens; magnifying glass with evidence clippings; balance scales beside unlabeled benchmark lines; receipt pictogram feeding into a looping rematch arrow. High-contrast charcoal ink on warm-cream paper, hand-inked contours, subtle risograph grain, cinematic collage, clean geometric silhouettes, electric market-yellow and gain-green accents with tiny restrained red details, warm rim light, deep graphic shadows. Premium fintech game hero, coherent top-down composition, generous edge breathing room, crisp at web size. Strictly zero alphabetic characters, words, numerals, logos, watermarks, signatures, brands, or human figures anywhere.",
+    "quality": "high",
+    "reference_elements": [],
+    "resolution": "2k",
+    "width": 2688
+  },
+  "result_url": "https://d8j0ntlcm91z4.cloudfront.net/user_3E3Fh0209cVr2vDGdUUsK7GfrWV/hf_20260721_125029_06545fd1-28cb-4c90-b71f-3c8bbdffb144.png",
+  "status": "completed"
+}

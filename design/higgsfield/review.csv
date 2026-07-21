@@ -15,3 +15,4 @@ coin-pickup,final,1,seed_audio,true,duration codec and waveform probe passed,tri
 collision,final,1,seed_audio,true,duration codec and waveform probe passed,trim mono and loudness normalize
 arcade-loop,final,1,sonilo_music,true,duration codec and channel probe passed,container sniff trim stereo and loudness normalize
 ws-run-loop,final,1,flux_2+seedance1_5,true,key pose and 15-frame loop contact QA passed,key-spill cleanup and duplicate endpoint
+season-week,final,1,gpt_image_2,true,original-detail and optimized-web visual QA passed,reference cleanup removed stray glyphs; 16:9 crop and WebP q75
