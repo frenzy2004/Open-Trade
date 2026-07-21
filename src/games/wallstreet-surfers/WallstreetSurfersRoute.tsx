@@ -10,7 +10,8 @@ import type { GameStore } from '../../shared/persistence/gameStore'
 import { createGuestSeed, parseChallenge } from '../../shared/routing/challenge'
 import { useSettings } from '../../shared/settings/SettingsContext'
 import { Button } from '../../shared/ui'
-import type { RunnerState } from './engine/types'
+import type { RunnerCommand, RunnerState } from './engine/types'
+import { RunnerInput } from './input/RunnerInput'
 import {
   createRunnerGame,
   type CreateRunnerGameOptions,
@@ -21,6 +22,15 @@ import {
   runnerStore,
   type RunnerSaveV1,
 } from './persistence/runnerSave'
+import {
+  RunnerTutorial,
+} from './ui/RunnerTutorial'
+import { TouchControls } from './ui/TouchControls'
+import {
+  advanceTutorial,
+  type TutorialAction,
+  type TutorialStep,
+} from './ui/tutorialState'
 
 export interface WallstreetSurfersRouteProps {
   readonly createGame?: (
@@ -57,13 +67,17 @@ export function WallstreetSurfersRoute({
   const bestScore = initialLoad.status === 'ready'
     ? initialLoad.value.bestScore
     : 0
-  const tutorialComplete = initialLoad.status === 'ready'
+  const initialTutorialComplete = initialLoad.status === 'ready'
     ? initialLoad.value.tutorialComplete
     : false
+  const tutorialCompleteRef = useRef(initialTutorialComplete)
   const [startupOptions] = useState(() => ({
     reducedMotion: settings.reducedMotion,
-    tutorialComplete,
+    tutorialComplete: initialTutorialComplete,
   }))
+  const [tutorialStep, setTutorialStep] = useState<TutorialStep>(
+    initialTutorialComplete ? 'complete' : 'lane',
+  )
   const [snapshot, setSnapshot] = useState<RunnerState | null>(null)
   const [showRecovery, setShowRecovery] = useState(
     initialLoad.status === 'recovery-required',
@@ -74,16 +88,27 @@ export function WallstreetSurfersRoute({
       createRunnerSave(
         state.seed,
         Math.max(state.bestScore, state.score),
-        tutorialComplete,
+        tutorialCompleteRef.current,
       ),
       { seed: state.seed },
     )
     setSaveError(!result.ok)
-  }, [store, tutorialComplete])
+  }, [store])
   const handleSnapshot = useCallback((state: RunnerState) => {
     setSnapshot(state)
     if (state.phase === 'gameOver') persistState(state)
   }, [persistState])
+  const handleRunnerCommand = useCallback((command: RunnerCommand) => {
+    gameRef.current?.dispatch(command)
+    setTutorialStep((current) => advanceTutorial(current, command))
+  }, [])
+  const handleTutorialAction = useCallback((action: TutorialAction) => {
+    if (action === 'ANSWER_LONG' || action === 'ANSWER_SHORT') {
+      setTutorialStep((current) => advanceTutorial(current, action))
+      return
+    }
+    handleRunnerCommand(action)
+  }, [handleRunnerCommand])
 
   useEffect(() => {
     const parent = mountRef.current
@@ -116,6 +141,31 @@ export function WallstreetSurfersRoute({
   useEffect(() => {
     gameRef.current?.setReducedMotion?.(settings.reducedMotion)
   }, [settings.reducedMotion])
+
+  useEffect(() => {
+    if (tutorialStep !== 'complete' || tutorialCompleteRef.current) return
+    tutorialCompleteRef.current = true
+    const game = gameRef.current
+    game?.completeTutorial?.()
+    if (game !== null) persistState(game.snapshot())
+  }, [persistState, tutorialStep])
+
+  useEffect(() => {
+    const input = new RunnerInput(handleRunnerCommand)
+    input.attach(window)
+    let animationFrame: number | null = null
+    const poll = () => {
+      input.pollGamepad()
+      animationFrame = window.requestAnimationFrame(poll)
+    }
+    if (typeof window.requestAnimationFrame === 'function') {
+      animationFrame = window.requestAnimationFrame(poll)
+    }
+    return () => {
+      input.detach()
+      if (animationFrame !== null) window.cancelAnimationFrame(animationFrame)
+    }
+  }, [handleRunnerCommand])
 
   return (
     <section className="runner-route" aria-labelledby="runner-title">
@@ -154,6 +204,11 @@ export function WallstreetSurfersRoute({
         data-testid="runner-canvas-mount"
         role="img"
         aria-label="Wallstreet Surfers three-lane game world"
+      />
+      <RunnerTutorial step={tutorialStep} onAction={handleTutorialAction} />
+      <TouchControls
+        onCommand={handleRunnerCommand}
+        disabled={snapshot?.phase === 'gameOver'}
       />
       <p>
         Score {snapshot?.score ?? 0}. Best {snapshot?.bestScore ?? bestScore}.

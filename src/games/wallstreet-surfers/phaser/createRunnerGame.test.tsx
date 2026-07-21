@@ -209,6 +209,57 @@ describe('createRunnerGame', () => {
     })
     handle.destroy()
   })
+
+  it('bounds and coalesces hostile command bursts without warm-frame drains', () => {
+    const gameFactory = vi.fn<RunnerGameFactory>(() => ({ destroy: vi.fn() }))
+    const handle = createRunnerGame(document.createElement('div'), {
+      seed: 'bounded-commands',
+      reducedMotion: false,
+      gameFactory,
+    })
+    const [creationCall] = gameFactory.mock.calls
+    if (creationCall === undefined) throw new Error('Expected game creation')
+    const scene = creationCall[0].scene
+    for (let frame = 0; frame < 10; frame += 1) scene.update(0, 1000 / 60)
+    expect(handle.diagnostics()).toMatchObject({
+      commandDrainCount: 0,
+      pendingCommands: 0,
+    })
+
+    for (let index = 0; index < 100; index += 1) {
+      handle.dispatch(index % 2 === 0 ? 'MOVE_LEFT' : 'MOVE_RIGHT')
+    }
+    expect(handle.diagnostics().pendingCommands).toBeLessThanOrEqual(8)
+    expect(handle.diagnostics().droppedCommands).toBeGreaterThan(0)
+    scene.update(0, 1000 / 60)
+    expect(handle.diagnostics()).toMatchObject({
+      commandDrainCount: 1,
+      pendingCommands: 0,
+    })
+    handle.destroy()
+  })
+
+  it('pauses world progression for an incomplete tutorial and starts in place', () => {
+    const gameFactory = vi.fn<RunnerGameFactory>(() => ({ destroy: vi.fn() }))
+    const handle = createRunnerGame(document.createElement('div'), {
+      seed: 'tutorial-run',
+      reducedMotion: false,
+      tutorialComplete: false,
+      gameFactory,
+    })
+    const [creationCall] = gameFactory.mock.calls
+    if (creationCall === undefined) throw new Error('Expected game creation')
+    const scene = creationCall[0].scene
+    scene.update(0, 100)
+    expect(handle.snapshot()).toMatchObject({ phase: 'tutorial', tick: 0 })
+
+    handle.dispatch('MOVE_RIGHT')
+    expect(handle.snapshot()).toMatchObject({ phase: 'tutorial', lane: 1 })
+    handle.completeTutorial()
+    scene.update(0, 1000 / 60)
+    expect(handle.snapshot()).toMatchObject({ phase: 'running', tick: 1, lane: 0 })
+    handle.destroy()
+  })
 })
 
 function MotionToggle() {
@@ -369,6 +420,7 @@ describe('WallstreetSurfersRoute lifecycle', () => {
             createGame={() => ({
               destroy: vi.fn(),
               dispatch: vi.fn(),
+              completeTutorial: vi.fn(),
               snapshot: () => createRunnerState({ seed: 'fallback', reducedMotion: false }),
               setReducedMotion: vi.fn(),
               diagnostics: vi.fn(),
@@ -397,6 +449,7 @@ describe('WallstreetSurfersRoute lifecycle', () => {
       return {
         destroy: vi.fn(),
         dispatch: vi.fn(),
+        completeTutorial: vi.fn(),
         snapshot: () => createRunnerState({ seed: 'save-failure', reducedMotion: false }),
         setReducedMotion: vi.fn(),
         diagnostics: vi.fn(),
@@ -417,5 +470,45 @@ describe('WallstreetSurfersRoute lifecycle', () => {
     act(() => publish?.(gameOver))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not save/i)
+  })
+
+  it('persists live tutorial completion only after all touch steps', async () => {
+    const storage = createMemoryStorage()
+    const store = createRunnerStore(storage)
+    const completeTutorial = vi.fn()
+    const state = createRunnerState({ seed: 'tutorial-route', reducedMotion: false })
+    state.phase = 'tutorial'
+    const handle = {
+      destroy: vi.fn(),
+      dispatch: vi.fn(),
+      completeTutorial,
+      snapshot: () => state,
+      setReducedMotion: vi.fn(),
+      diagnostics: vi.fn(),
+    } as RunnerGameHandle
+    const createGame = vi.fn<NonNullable<WallstreetSurfersRouteProps['createGame']>>(
+      () => handle,
+    )
+
+    render(
+      <MemoryRouter initialEntries={['/wallstreet-surfers?seed=tutorial-route&rules=1']}>
+        <SettingsProvider store={createSettingsStore(createMemoryStorage())}>
+          <WallstreetSurfersRoute createGame={createGame} store={store} />
+        </SettingsProvider>
+      </MemoryRouter>,
+    )
+    await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: /move left/i }))
+    fireEvent.click(screen.getByRole('button', { name: /jump/i }))
+    fireEvent.click(screen.getByRole('button', { name: /roll/i }))
+    expect(completeTutorial).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: /^long$/i }))
+
+    await waitFor(() => expect(completeTutorial).toHaveBeenCalledTimes(1))
+    expect(store.load()).toMatchObject({
+      status: 'ready',
+      value: { tutorialComplete: true },
+    })
   })
 })

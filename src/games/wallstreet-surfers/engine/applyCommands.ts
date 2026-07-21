@@ -7,8 +7,8 @@ import {
   type RunnerState,
 } from './types'
 
-export const JUMP_DURATION_MS = 650
-export const ROLL_DURATION_MS = 500
+export const JUMP_DURATION_MS = 760
+export const ROLL_DURATION_MS = 650
 const ACTION_BOUNDARY_EPSILON_MS = 1e-9
 
 function resetRunner(state: RunnerState): void {
