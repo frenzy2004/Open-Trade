@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "installCommand": "npm ci && python -m pip install --requirement requirements-assets.txt",
+  "installCommand": "npm ci && uv pip install --system --requirement requirements-assets.txt",
   "buildCommand": "npm run build:vercel",
   "outputDirectory": "dist",
   "headers": [
