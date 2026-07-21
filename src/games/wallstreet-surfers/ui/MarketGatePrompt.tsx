@@ -1,4 +1,6 @@
 import { Button } from '../../../shared/ui'
+import { SafeImage } from '../../../shared/assets/SafeImage'
+import { runnerTextureAsset } from '../assets/runnerAssets'
 import type { MarketDirection } from '../content/marketGates'
 import type { RunnerState } from '../engine/types'
 
@@ -8,6 +10,8 @@ export interface MarketGatePromptProps {
 }
 
 export function MarketGatePrompt({ state, onAnswer }: MarketGatePromptProps) {
+  const longArrow = runnerTextureAsset('ws-long-arrow')
+  const shortArrow = runnerTextureAsset('ws-short-arrow')
   const active = state.currentGate
   if (active !== null) {
     return (
@@ -16,9 +20,27 @@ export function MarketGatePrompt({ state, onAnswer }: MarketGatePromptProps) {
         <h2 id="runner-gate-title">Make the call</h2>
         <p>{active.gate.setup}</p>
         <div role="group" aria-label="Market direction">
-          <Button onClick={() => onAnswer('long')}>LONG · Up / Jump</Button>
+          <Button onClick={() => onAnswer('long')}>
+            <span className="runner-gate__answer">
+              <SafeImage
+                src={longArrow.url}
+                alt=""
+                fallbackLabel="Up"
+                className="runner-gate__arrow"
+              />
+              <span>LONG · Up / Jump</span>
+            </span>
+          </Button>
           <Button variant="secondary" onClick={() => onAnswer('short')}>
-            SHORT · Down / Roll
+            <span className="runner-gate__answer">
+              <SafeImage
+                src={shortArrow.url}
+                alt=""
+                fallbackLabel="Down"
+                className="runner-gate__arrow"
+              />
+              <span>SHORT · Down / Roll</span>
+            </span>
           </Button>
         </div>
       </section>
