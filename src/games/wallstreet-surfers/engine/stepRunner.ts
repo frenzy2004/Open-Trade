@@ -16,9 +16,11 @@ import {
 const STEP_EPSILON_MS = 1e-9
 
 function advanceOneTick(state: RunnerState): void {
+  const completedMetersBefore = Math.floor(state.distanceM)
   state.tick += 1
   state.elapsedMs += FIXED_STEP_MS
   state.distanceM += state.speedMps * (FIXED_STEP_MS / 1000)
+  state.score += Math.floor(state.distanceM) - completedMetersBefore
 
   const speedSteps = Math.floor(
     (state.distanceM + Number.EPSILON) / SPEED_STEP_DISTANCE_M,

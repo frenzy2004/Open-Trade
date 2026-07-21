@@ -10,11 +10,14 @@ import type { GameStore } from '../../shared/persistence/gameStore'
 import { createGuestSeed, parseChallenge } from '../../shared/routing/challenge'
 import { useSettings } from '../../shared/settings/SettingsContext'
 import { Button } from '../../shared/ui'
+import { createChallengeHash } from './challenge'
+import type { MarketDirection } from './content/marketGates'
 import type { RunnerCommand, RunnerState } from './engine/types'
 import { RunnerInput } from './input/RunnerInput'
 import {
   createRunnerGame,
   type CreateRunnerGameOptions,
+  type RunnerDiagnostics,
   type RunnerGameHandle,
 } from './phaser/createRunnerGame'
 import {
@@ -25,6 +28,10 @@ import {
 import {
   RunnerTutorial,
 } from './ui/RunnerTutorial'
+import { MarketGatePrompt } from './ui/MarketGatePrompt'
+import { RunnerDebugOverlay } from './ui/RunnerDebugOverlay'
+import { RunnerGameOver } from './ui/RunnerGameOver'
+import { RunnerHud } from './ui/RunnerHud'
 import { TouchControls } from './ui/TouchControls'
 import {
   advanceTutorial,
@@ -56,6 +63,10 @@ export function WallstreetSurfersRoute({
   }, [search])
   const invalidChallenge = hasExplicitChallenge
     && (challenge === null || challenge.rulesetVersion !== 1)
+  const debugEnabled = useMemo(
+    () => new URLSearchParams(search).get('debug') === '1',
+    [search],
+  )
   const seed = useMemo(
     () => challenge?.rulesetVersion === 1
       ? challenge.seed
@@ -79,10 +90,12 @@ export function WallstreetSurfersRoute({
     initialTutorialComplete ? 'complete' : 'lane',
   )
   const [snapshot, setSnapshot] = useState<RunnerState | null>(null)
+  const [diagnostics, setDiagnostics] = useState<RunnerDiagnostics | null>(null)
   const [showRecovery, setShowRecovery] = useState(
     initialLoad.status === 'recovery-required',
   )
   const [saveError, setSaveError] = useState(false)
+  const [shareStatus, setShareStatus] = useState<string | null>(null)
   const persistState = useCallback((state: RunnerState) => {
     const result = store.save(
       createRunnerSave(
@@ -96,6 +109,7 @@ export function WallstreetSurfersRoute({
   }, [store])
   const handleSnapshot = useCallback((state: RunnerState) => {
     setSnapshot(state)
+    setDiagnostics(gameRef.current?.diagnostics?.() ?? null)
     if (state.phase === 'gameOver') persistState(state)
   }, [persistState])
   const handleRunnerCommand = useCallback((command: RunnerCommand) => {
@@ -109,6 +123,26 @@ export function WallstreetSurfersRoute({
     }
     handleRunnerCommand(action)
   }, [handleRunnerCommand])
+  const handleGateAnswer = useCallback((answer: MarketDirection) => {
+    handleRunnerCommand(answer === 'long' ? 'JUMP' : 'ROLL')
+  }, [handleRunnerCommand])
+  const handleRunAgain = useCallback(() => {
+    setShareStatus(null)
+    handleRunnerCommand('RESTART')
+  }, [handleRunnerCommand])
+  const handleShare = useCallback(async () => {
+    const hash = createChallengeHash(seed, 1)
+    const url = `${window.location.origin}${window.location.pathname}${hash}`
+    try {
+      if (navigator.clipboard === undefined) {
+        throw new Error('Clipboard unavailable')
+      }
+      await navigator.clipboard.writeText(url)
+      setShareStatus('Challenge link copied.')
+    } catch {
+      setShareStatus('Could not copy the challenge link.')
+    }
+  }, [seed])
 
   useEffect(() => {
     const parent = mountRef.current
@@ -205,14 +239,35 @@ export function WallstreetSurfersRoute({
         role="img"
         aria-label="Wallstreet Surfers three-lane game world"
       />
+      {snapshot !== null ? (
+        <>
+          <RunnerHud
+            state={snapshot}
+            onPause={() => handleRunnerCommand('PAUSE')}
+          />
+          <MarketGatePrompt state={snapshot} onAnswer={handleGateAnswer} />
+          <RunnerDebugOverlay
+            state={snapshot}
+            enabled={debugEnabled}
+            diagnostics={diagnostics}
+          />
+          <RunnerGameOver
+            state={snapshot}
+            onRunAgain={handleRunAgain}
+            onShare={() => { void handleShare() }}
+          />
+        </>
+      ) : null}
       <RunnerTutorial step={tutorialStep} onAction={handleTutorialAction} />
       <TouchControls
         onCommand={handleRunnerCommand}
         disabled={snapshot?.phase === 'gameOver'}
       />
-      <p>
-        Score {snapshot?.score ?? 0}. Best {snapshot?.bestScore ?? bestScore}.
-      </p>
+      {shareStatus !== null ? (
+        <p className="runner-share-status" role="status" aria-live="polite">
+          {shareStatus}
+        </p>
+      ) : null}
     </section>
   )
 }

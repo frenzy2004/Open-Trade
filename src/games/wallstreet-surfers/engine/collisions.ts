@@ -9,6 +9,7 @@ import {
 export type { ObstacleKind, RunnerObstacle } from './types'
 
 export const COLLISION_HALF_WINDOW_M = 0.5
+export const COIN_SCORE = 25
 
 function isWithinCollisionWindow(
   state: RunnerState,
@@ -93,6 +94,8 @@ export function resolveRunnerCollisions(state: RunnerState): RunnerState {
     if (entity.kind === 'coin') {
       entity.resolved = true
       state.coins += 1
+      state.score += COIN_SCORE
+      state.bestScore = Math.max(state.bestScore, state.score)
       continue
     }
 

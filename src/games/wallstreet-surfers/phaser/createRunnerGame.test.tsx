@@ -355,7 +355,10 @@ describe('WallstreetSurfersRoute lifecycle', () => {
     const handle = {
       destroy: vi.fn(),
       dispatch: vi.fn(),
-      snapshot: vi.fn(() => ({ seed: 'react-update', bestScore: 0, score: 0 })),
+      snapshot: vi.fn(() => createRunnerState({
+        seed: 'react-update',
+        reducedMotion: false,
+      })),
     } as unknown as RunnerGameHandle
     const createGame = vi.fn<NonNullable<WallstreetSurfersRouteProps['createGame']>>((_parent, options) => {
       publish = () => options.onSnapshot?.(handle.snapshot())
@@ -510,5 +513,72 @@ describe('WallstreetSurfersRoute lifecycle', () => {
       status: 'ready',
       value: { tutorialComplete: true },
     })
+  })
+
+  it('copies a full challenge URL only after the explicit game-over action', async () => {
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+    let publish: ((state: ReturnType<typeof createRunnerState>) => void) | undefined
+    const gameOver = createRunnerState({ seed: 'share-route', reducedMotion: false })
+    gameOver.phase = 'gameOver'
+    gameOver.lastFailure = {
+      kind: 'barrier',
+      message: 'You ate the barrier',
+      tip: 'Jump or switch lanes before the barrier',
+    }
+    const handle: RunnerGameHandle = {
+      destroy: vi.fn(),
+      dispatch: vi.fn(),
+      completeTutorial: vi.fn(),
+      snapshot: () => gameOver,
+      setReducedMotion: vi.fn(),
+      diagnostics: () => ({
+        catchUpLimit: 5,
+        commandDrainCount: 0,
+        droppedCommands: 0,
+        droppedFrameMs: 0,
+        pendingCommands: 0,
+      }),
+    }
+    const createGame: NonNullable<WallstreetSurfersRouteProps['createGame']> = (
+      _parent,
+      options,
+    ) => {
+      publish = options.onSnapshot
+      return handle
+    }
+    const store = createRunnerStore(createMemoryStorage())
+    store.save(createRunnerSave('share-route', 0, true), { seed: 'share-route' })
+
+    try {
+      render(
+        <MemoryRouter initialEntries={['/wallstreet-surfers?seed=share-route&rules=1']}>
+          <SettingsProvider store={createSettingsStore(createMemoryStorage())}>
+            <WallstreetSurfersRoute createGame={createGame} store={store} />
+          </SettingsProvider>
+        </MemoryRouter>,
+      )
+      await waitFor(() => expect(publish).toBeTypeOf('function'))
+      act(() => publish?.(gameOver))
+      expect(writeText).not.toHaveBeenCalled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Challenge a friend' }))
+
+      await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
+      expect(writeText.mock.calls[0]?.[0]).toMatch(
+        /#\/wallstreet-surfers\?seed=share-route&rules=1$/,
+      )
+      expect(screen.getByRole('status')).toHaveTextContent(/challenge link copied/i)
+    } finally {
+      if (clipboardDescriptor === undefined) {
+        Reflect.deleteProperty(navigator, 'clipboard')
+      } else {
+        Object.defineProperty(navigator, 'clipboard', clipboardDescriptor)
+      }
+    }
   })
 })

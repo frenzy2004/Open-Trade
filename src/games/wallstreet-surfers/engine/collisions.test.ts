@@ -229,12 +229,15 @@ describe('typed collisions', () => {
     stepRunner(state, [], FIXED_STEP_MS)
 
     expect(state.coins).toBe(1)
+    expect(state.score).toBe(25)
+    expect(state.bestScore).toBe(25)
     expect(state.phase).toBe('running')
     expect(state.lastFailure).toBeNull()
     expect(coin.resolved).toBe(true)
 
     stepRunner(state, [], FIXED_STEP_MS)
     expect(state.coins).toBe(1)
+    expect(state.score).toBe(25)
   })
 
   it('ends the run once with the detected typed failure', () => {

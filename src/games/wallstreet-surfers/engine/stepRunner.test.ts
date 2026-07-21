@@ -122,6 +122,15 @@ describe('runner fixed-step progression', () => {
     stepRunner(state, [], 1_000_000)
     expect(state.speedMps).toBe(22)
   })
+
+  it('adds one score point per completed meter', () => {
+    const state = createRunnerState({ seed: 'distance-score', reducedMotion: false })
+
+    stepRunner(state, [], 2_000)
+
+    expect(state.score).toBe(Math.floor(state.distanceM))
+    expect(state.bestScore).toBe(state.score)
+  })
 })
 
 describe('runner runtime validation', () => {
