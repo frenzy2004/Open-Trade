@@ -4,7 +4,10 @@ const previewPort = Number(process.env.PLAYWRIGHT_PORT ?? 4173)
 if (!Number.isSafeInteger(previewPort) || previewPort < 1 || previewPort > 65_535) {
   throw new RangeError('PLAYWRIGHT_PORT must be an integer from 1 to 65535')
 }
-const previewUrl = `http://127.0.0.1:${previewPort}/Open-Trade/`
+const previewBasePath = process.env.PLAYWRIGHT_BASE_PATH ?? '/Open-Trade/'
+const previewBuildCommand = process.env.PLAYWRIGHT_BUILD_COMMAND
+  ?? 'npm run build'
+const previewUrl = `http://127.0.0.1:${previewPort}${previewBasePath}`
 const crossBrowserSmoke = /complete league|320px|card detail supports keyboard/u
 
 export default defineConfig({
@@ -62,7 +65,7 @@ export default defineConfig({
   ],
   webServer: {
     command:
-      `npm run build && npm run preview -- --host 127.0.0.1 --port ${previewPort}`,
+      `${previewBuildCommand} && npm run preview -- --host 127.0.0.1 --port ${previewPort} --base ${previewBasePath}`,
     url: previewUrl,
     reuseExistingServer:
       process.env.PLAYWRIGHT_PORT === undefined && !process.env.CI,

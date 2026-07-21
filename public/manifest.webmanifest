@@ -7,7 +7,7 @@
   "display": "standalone",
   "orientation": "any",
   "theme_color": "#f2c94c",
-  "background_color": "#171511",
+  "background_color": "#171512",
   "icons": [
     {
       "src": "./icons/open-trade-192.png",

@@ -7,9 +7,10 @@ import { gzipSync } from 'node:zlib'
 
 export const DEFAULT_THRESHOLDS = Object.freeze({
   initialJavaScriptGzipBytes: 350 * 1024,
+  initialStylesheetGzipBytes: 64 * 1024,
   lazyRunnerJavaScriptGzipBytes: 1.2 * 1024 * 1024,
   distributionBytes: 20 * 1024 * 1024,
-  singleAssetBytes: 25 * 1024 * 1024,
+  singleAssetBytes: 8 * 1024 * 1024,
 })
 
 const JAVASCRIPT_EXTENSION = /\.(?:js|mjs)$/i
@@ -118,6 +119,9 @@ export function analyzeRelease(
   if (initialJavaScriptGzipBytes > thresholds.initialJavaScriptGzipBytes) {
     errors.push('initial application JavaScript exceeds 350 KiB gzip')
   }
+  if (initialStylesheetGzipBytes > thresholds.initialStylesheetGzipBytes) {
+    errors.push('initial application CSS exceeds 64 KiB gzip')
+  }
   if (lazyRunnerJavaScriptGzipBytes > thresholds.lazyRunnerJavaScriptGzipBytes) {
     errors.push('lazy runner JavaScript exceeds 1.2 MiB gzip')
   }
@@ -126,7 +130,7 @@ export function analyzeRelease(
   }
   for (const file of allFiles) {
     if (file.bytes >= thresholds.singleAssetBytes) {
-      errors.push(`${file.relativePath} is not below the 25 MiB single-asset limit`)
+      errors.push(`${file.relativePath} is not below the 8 MiB single-asset limit`)
     }
   }
 
