@@ -1,4 +1,20 @@
-import type { StockCard } from './types';
+import type { StockCard, Ticker } from './types';
+
+function createReadonlyMapView<K, V>(source: ReadonlyMap<K, V>): ReadonlyMap<K, V> {
+  const view: ReadonlyMap<K, V> = {
+    get size() { return source.size; },
+    get(key) { return source.get(key); },
+    has(key) { return source.has(key); },
+    entries() { return source.entries(); },
+    keys() { return source.keys(); },
+    values() { return source.values(); },
+    [Symbol.iterator]() { return source[Symbol.iterator](); },
+    forEach(callback, thisArg) {
+      source.forEach((value, key) => callback.call(thisArg, value, key, view));
+    },
+  };
+  return Object.freeze(view);
+}
 
 const card = (
   ticker: string,
@@ -9,11 +25,15 @@ const card = (
   correlationGroup: StockCard['correlationGroup'],
   thesis: string,
   evidence: StockCard['evidence'],
-): StockCard => Object.freeze({
-  ticker, company, sector, volatility, momentumBias, correlationGroup, thesis, evidence,
-  artworkKey: ticker.toLowerCase(),
-  syntheticDemo: true,
-});
+): StockCard => {
+  const frozenEvidence = Object.freeze([...evidence]) as StockCard['evidence'];
+  return Object.freeze({
+    ticker, company, sector, volatility, momentumBias, correlationGroup, thesis,
+    evidence: frozenEvidence,
+    artworkKey: ticker.toLowerCase(),
+    syntheticDemo: true,
+  });
+};
 
 export const STOCKS: readonly StockCard[] = Object.freeze([
   card('XLE', 'Energy Select Sector SPDR Fund', 'energy', 0.58, 0.12, 'energy-cycle',
@@ -54,4 +74,8 @@ export const STOCKS: readonly StockCard[] = Object.freeze([
     ['Current medicines produce cash', 'Pipeline wins can reset expectations', 'Patent losses pressure future sales']),
 ]);
 
-export const STOCK_BY_TICKER = new Map(STOCKS.map((stock) => [stock.ticker, stock]));
+const stockByTicker = new Map<Ticker, StockCard>(
+  STOCKS.map((stock) => [stock.ticker, stock] as const),
+);
+
+export const STOCK_BY_TICKER: ReadonlyMap<Ticker, StockCard> = createReadonlyMapView(stockByTicker);
