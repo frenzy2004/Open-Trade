@@ -1,9 +1,23 @@
 import { Link } from 'react-router-dom'
+import { asset, type AssetId } from '../../assets/catalog'
+import { SafeImage } from '../../shared/assets/SafeImage'
 import { Button } from '../../shared/ui'
 import type {
+  GameId,
   GameProgressBadge,
   GameRouteMetadata,
 } from '../routes/types'
+
+type HubCoverAssetId = Extract<
+  AssetId,
+  'fs-draft-room' | 'fm-boardroom' | 'ws-runner-street'
+>
+
+const COVER_ASSET_BY_GAME: Readonly<Record<GameId, HubCoverAssetId>> = Object.freeze({
+  fanstocks: 'fs-draft-room',
+  'founder-mode': 'fm-boardroom',
+  'wallstreet-surfers': 'ws-runner-street',
+})
 
 export interface GameCardProps {
   readonly metadata: GameRouteMetadata
@@ -18,15 +32,17 @@ export function GameCard({
   onHowItWorks,
   onReset,
 }: GameCardProps) {
+  const cover = asset(COVER_ASSET_BY_GAME[metadata.id])
+
   return (
     <article className={'game-card game-card--' + metadata.accent}>
-      <div
+      <SafeImage
         className="game-card__cover"
-        role="img"
-        aria-label={metadata.coverLabel}
-      >
-        <span aria-hidden="true">{metadata.title.slice(0, 2)}</span>
-      </div>
+        src={cover.url}
+        alt={metadata.coverLabel}
+        fallbackLabel={`${metadata.title} artwork unavailable`}
+        loading="eager"
+      />
       <div className="game-card__body">
         <p className="game-card__eyebrow">{metadata.eyebrow}</p>
         <h2>{metadata.title}</h2>
