@@ -4,6 +4,7 @@ import marketSuccessUrl from './audio/shared/market-success.ogg?url'
 import uiConfirmUrl from './audio/shared/ui-confirm.ogg?url'
 import coinPickupUrl from './audio/wallstreet-surfers/coin-pickup.ogg?url'
 import collisionUrl from './audio/wallstreet-surfers/collision.ogg?url'
+import seasonWeekUrl from './generated/season/season-week.webp?url'
 import fanStocksDraftRoomUrl from './generated/fanstocks/draft-room.webp?url'
 import founderBoardroomUrl from './generated/founder-mode/boardroom.webp?url'
 import runnerBarrierUrl from './generated/wallstreet-surfers/barrier.png?url'
@@ -16,6 +17,7 @@ import runnerShortArrowUrl from './generated/wallstreet-surfers/short-arrow.png?
 import runnerTrainUrl from './generated/wallstreet-surfers/train.png?url'
 
 export type AssetId =
+  | 'season-week'
   | 'fs-draft-room'
   | 'fm-boardroom'
   | 'ws-runner-street'
@@ -41,6 +43,7 @@ export interface AssetRecord {
 }
 
 export const ASSET_CATALOG_IDS = [
+  'season-week',
   'fs-draft-room',
   'fm-boardroom',
   'ws-runner-street',
@@ -75,6 +78,12 @@ function makeAsset(
 }
 
 export const ASSET_CATALOG: Readonly<Record<AssetId, AssetRecord>> = Object.freeze({
+  'season-week': makeAsset(
+    'season-week',
+    seasonWeekUrl,
+    'image',
+    'A complete market week arranged as an editorial strategy desk',
+  ),
   'fs-draft-room': makeAsset(
     'fs-draft-room',
     fanStocksDraftRoomUrl,

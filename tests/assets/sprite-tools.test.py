@@ -193,7 +193,7 @@ class SpriteToolsTest(unittest.TestCase):
             self.build_asset_fixture(fixture_root)
             result = self.run_asset_validator(fixture_root)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("asset validation passed: 16/16", result.stdout)
+            self.assertIn("asset validation passed: 17/17", result.stdout)
 
     def test_validator_rejects_opaque_rgba_pngs(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

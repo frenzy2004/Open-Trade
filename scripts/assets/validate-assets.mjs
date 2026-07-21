@@ -104,7 +104,7 @@ let audioPlan = { assets: [] };
 if (manifestPath) {
   manifest = parseCsv(readFileSync(manifestPath, 'utf8'));
   const uniqueIds = new Set(manifest.map(({ id }) => id));
-  if (manifest.length !== 16) errors.push(`manifest must contain 16 IDs; found ${manifest.length}`);
+  if (manifest.length !== 17) errors.push(`manifest must contain 17 IDs; found ${manifest.length}`);
   if (uniqueIds.size !== manifest.length) errors.push('manifest IDs must be unique');
 }
 if (generationPlanPath) generationPlan = JSON.parse(readFileSync(generationPlanPath, 'utf8'));
@@ -116,7 +116,7 @@ if (thresholdsPath) {
   }
 }
 
-if (generationPlan.assets.length !== 9) errors.push(`generation plan must contain nine static assets; found ${generationPlan.assets.length}`);
+if (generationPlan.assets.length !== 10) errors.push(`generation plan must contain ten static assets; found ${generationPlan.assets.length}`);
 if (audioPlan.assets.length !== 6) errors.push(`audio plan must contain six assets; found ${audioPlan.assets.length}`);
 
 const runSheet = {
@@ -135,7 +135,7 @@ for (const audio of audioPlan.assets) {
 }
 
 const expectedIds = new Set([...generationPlan.assets, runSheet, ...audioPlan.assets].map(({ id }) => id));
-if (expectedIds.size !== 16) errors.push(`planned output IDs must total 16; found ${expectedIds.size}`);
+if (expectedIds.size !== 17) errors.push(`planned output IDs must total 17; found ${expectedIds.size}`);
 if (manifest.length && (manifest.some(({ id }) => !expectedIds.has(id)) || [...expectedIds].some((id) => !manifest.some((row) => row.id === id)))) {
   errors.push('manifest IDs do not agree with the output plans');
 }
@@ -213,5 +213,5 @@ if (errors.length) {
   for (const error of errors) console.error(`- ${error}`);
   process.exitCode = 1;
 } else {
-  console.log('asset validation passed: 16/16');
+  console.log('asset validation passed: 17/17');
 }

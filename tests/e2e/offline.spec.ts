@@ -2,7 +2,8 @@ import { expect, test } from '@playwright/test'
 
 const BASE_PATH = process.env.PLAYWRIGHT_BASE_PATH ?? '/Open-Trade/'
 const ROUTES = [
-  { hash: '/', heading: 'Choose your market' },
+  { hash: '/', heading: 'One market week. One complete loop.' },
+  { hash: '/season', heading: 'Draft your three calls' },
   { hash: '/fanstocks', heading: 'Fantasy Stock Leagues' },
   { hash: '/founder-mode', heading: 'Founder Mode' },
   { hash: '/wallstreet-surfers', heading: 'Wallstreet Surfers' },
@@ -48,7 +49,7 @@ test('replays the cached hub and every game route after the network is removed',
   await page.reload()
   await expect(
     page.getByRole('heading', {
-      name: 'Choose your market',
+      name: 'One market week. One complete loop.',
       level: 1,
     }),
   ).toBeVisible()

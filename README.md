@@ -1,6 +1,6 @@
 # OpenTrade
 
-OpenTrade is a polished, offline-capable collection of three deterministic market games. It recreates the mechanics of the original OpenTrade experience with original Higgsfield-generated art and audio, stronger accessibility, resilient local saves, and responsive desktop/touch controls.
+OpenTrade is a polished, offline-capable market game built around one canonical weekly Season, plus three deterministic Market Lab practice modes. It recreates the mechanics of the original OpenTrade experience with original Higgsfield-generated art and audio, stronger accessibility, resilient local saves, and responsive desktop/touch controls.
 
 **[Play the live Vercel build](https://open-trade-seven.vercel.app)**
 
@@ -8,7 +8,18 @@ OpenTrade is a polished, offline-capable collection of three deterministic marke
 
 ![OpenTrade game hub](docs/screenshots/hub.png)
 
-## Three complete games
+## OpenTrade Season
+
+Season connects the product into one complete ritual:
+
+1. **Monday:** draft three calls with direction, confidence, a falsifiable reason, and the evidence that would change your mind.
+2. **Tuesday–Thursday:** respond to new evidence while the original commitment stays visible.
+3. **Friday:** settle the week on direction, calibration, reasoning, evidence response, and benchmark-relative performance—not return alone.
+4. **Weekend:** receive a shareable decision-quality receipt and rematch with one tap.
+
+The hackathon build supports solo play plus deterministic six-character league challenges. It never puts free-text reasoning in a shared URL and does not claim to synchronize a real-money or live multiplayer account.
+
+## Three complete Market Lab games
 
 ### FanStocks
 
@@ -59,7 +70,7 @@ The release gate includes ESLint, TypeScript, unit and browser-component tests, 
 
 ## Higgsfield asset provenance
 
-The shipped experience uses ten accepted Higgsfield visuals and six accepted audio cues. The generated files live under `src/assets/generated/`; job receipts, model inputs, and outputs are retained under `design/higgsfield/jobs/`, with the acceptance record in `design/higgsfield/asset-review.csv`.
+The shipped experience uses accepted Higgsfield visuals and audio cues. The generated files live under `src/assets/generated/`; job receipts, model inputs, and outputs are retained under `design/higgsfield/jobs/`, with the acceptance record in `design/higgsfield/review.csv`.
 
 No generated asset depends on a remote runtime URL. Approved media is bundled, validated, and precached for offline play.
 

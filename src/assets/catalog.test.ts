@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { ASSET_CATALOG, ASSET_CATALOG_IDS, asset } from './catalog'
 
 const EXPECTED_IDS = [
+  'season-week',
   'fs-draft-room',
   'fm-boardroom',
   'ws-runner-street',
@@ -21,7 +22,7 @@ const EXPECTED_IDS = [
 ] as const
 
 describe('Higgsfield asset catalog', () => {
-  it('exposes the exact immutable 16-asset contract', () => {
+  it('exposes the exact immutable 17-asset contract', () => {
     expect(ASSET_CATALOG_IDS).toEqual(EXPECTED_IDS)
     expect(Object.keys(ASSET_CATALOG)).toEqual(EXPECTED_IDS)
     expect(Object.isFrozen(ASSET_CATALOG_IDS)).toBe(true)

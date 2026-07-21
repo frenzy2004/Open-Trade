@@ -21,7 +21,10 @@ test('loads a game entry from its hash route and can return to the hub', async (
 
   await screen.getByRole('link', { name: 'OpenTrade games' }).click()
   await expect.element(
-    screen.getByRole('heading', { name: 'Choose your market', level: 1 }),
+    screen.getByRole('heading', {
+      name: 'One market week. One complete loop.',
+      level: 1,
+    }),
   ).toBeVisible()
   await expect.element(screen.getByRole('main')).toHaveFocus()
 })
