@@ -18,7 +18,7 @@ import { SettingsPanel } from './SettingsPanel'
 
 const testCodec: GameSaveCodec<AppSettings> = {
   key: 'open-trade:test-settings-browser',
-  version: 1,
+  version: 2,
   encode: (value) => value,
   decode: (value) => {
     if (typeof value !== 'object' || value === null) {
@@ -29,13 +29,16 @@ const testCodec: GameSaveCodec<AppSettings> = {
       Object.hasOwn(record, 'muted') &&
       typeof record.muted === 'boolean' &&
       Object.hasOwn(record, 'reducedMotion') &&
-      typeof record.reducedMotion === 'boolean'
+      typeof record.reducedMotion === 'boolean' &&
+      Object.hasOwn(record, 'volume') &&
+      typeof record.volume === 'number'
     ) {
       return {
         ok: true,
         value: {
           muted: record.muted,
           reducedMotion: record.reducedMotion,
+          volume: record.volume,
         },
       }
     }
@@ -52,7 +55,8 @@ function Harness() {
       <Button onClick={() => setOpen(true)}>Settings</Button>
       <output>
         {settings.muted ? 'Muted' : 'Sound on'} ·{' '}
-        {settings.reducedMotion ? 'Reduced motion' : 'Standard motion'}
+        {settings.reducedMotion ? 'Reduced motion' : 'Standard motion'} ·{' '}
+        {Math.round(settings.volume * 100)}% volume
       </output>
       <SettingsPanel open={open} onClose={() => setOpen(false)} />
     </>
@@ -73,12 +77,15 @@ test('updates and persists sound and reduced-motion settings', async () => {
 
   await screen.getByRole('button', { name: 'Settings' }).click()
   await screen.getByRole('checkbox', { name: 'Sound' }).click()
+  await screen.getByRole('slider', { name: 'Volume' }).fill('0.4')
   await screen.getByRole('checkbox', { name: 'Reduce motion' }).click()
 
-  await expect.element(screen.getByText('Muted · Reduced motion')).toBeVisible()
+  await expect.element(
+    screen.getByText('Muted · Reduced motion · 40% volume'),
+  ).toBeVisible()
   expect(store.load()).toMatchObject({
     status: 'ready',
-    value: { muted: true, reducedMotion: true },
+    value: { muted: true, reducedMotion: true, volume: 0.4 },
   })
 })
 
@@ -88,7 +95,7 @@ test('removes the reduced-motion data attribute when the provider unmounts', asy
   const screen = await render(
     <SettingsProvider
       store={store}
-      initialSettings={{ muted: false, reducedMotion: true }}
+      initialSettings={{ muted: false, reducedMotion: true, volume: 0.7 }}
     >
       <Harness />
     </SettingsProvider>,

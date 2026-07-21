@@ -31,6 +31,23 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
             }
           />
         </label>
+        <label className="settings-row settings-row--volume">
+          <span>
+            <strong>Volume</strong>
+            <small>{Math.round(settings.volume * 100)}% master level.</small>
+          </span>
+          <input
+            type="range"
+            aria-label="Volume"
+            min="0"
+            max="1"
+            step="0.05"
+            value={settings.volume}
+            onChange={(event) =>
+              updateSettings({ volume: event.currentTarget.valueAsNumber })
+            }
+          />
+        </label>
         <label className="settings-row">
           <span>
             <strong>Reduce motion</strong>

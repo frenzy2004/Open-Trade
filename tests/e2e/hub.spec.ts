@@ -36,7 +36,9 @@ async function expectGameReady(
   page: Page,
   game: (typeof GAMES)[number],
 ) {
-  await expect(page).toHaveURL(new RegExp(`#/${game.path}$`))
+  await expect(page).toHaveURL(
+    new RegExp(`#/${game.path}(?:\\?.*)?$`),
+  )
   await expect(
     page.getByRole('heading', { name: game.heading, level: 1 }),
   ).toBeVisible()
@@ -107,6 +109,7 @@ for (const game of GAMES) {
 test('persists shared sound and reduced-motion settings', async ({ page }) => {
   await page.getByRole('button', { name: 'Settings' }).click()
   await page.getByRole('checkbox', { name: 'Sound' }).uncheck()
+  await page.getByRole('slider', { name: 'Volume' }).fill('0.4')
   await page.getByRole('checkbox', { name: 'Reduce motion' }).check()
   await page.getByRole('button', { name: 'Close Settings' }).click()
   await expect(
@@ -116,6 +119,7 @@ test('persists shared sound and reduced-motion settings', async ({ page }) => {
   await page.getByRole('button', { name: 'Settings' }).click()
 
   await expect(page.getByRole('checkbox', { name: 'Sound' })).not.toBeChecked()
+  await expect(page.getByRole('slider', { name: 'Volume' })).toHaveValue('0.4')
   await expect(
     page.getByRole('checkbox', { name: 'Reduce motion' }),
   ).toBeChecked()
@@ -216,6 +220,7 @@ test('supports keyboard-only access to settings and how-to content', async ({
   await expect(settingsDialog.locator(':focus')).toHaveCount(1)
 
   const soundCheckbox = page.getByRole('checkbox', { name: 'Sound' })
+  const volumeSlider = page.getByRole('slider', { name: 'Volume' })
   const motionCheckbox = page.getByRole('checkbox', {
     name: 'Reduce motion',
   })
@@ -223,7 +228,13 @@ test('supports keyboard-only access to settings and how-to content', async ({
   await expectKeyboardFocus(soundCheckbox)
   await expect(settingsDialog.locator(':focus')).toHaveCount(1)
   await page.keyboard.press('Tab')
+  await expectKeyboardFocus(volumeSlider)
+  await expect(settingsDialog.locator(':focus')).toHaveCount(1)
+  await page.keyboard.press('Tab')
   await expectKeyboardFocus(motionCheckbox)
+  await expect(settingsDialog.locator(':focus')).toHaveCount(1)
+  await page.keyboard.press('Shift+Tab')
+  await expectKeyboardFocus(volumeSlider)
   await expect(settingsDialog.locator(':focus')).toHaveCount(1)
   await page.keyboard.press('Shift+Tab')
   await expectKeyboardFocus(soundCheckbox)

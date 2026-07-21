@@ -26,12 +26,12 @@ describe('settings store', () => {
   it('round-trips the exact public settings shape', () => {
     const store = createSettingsStore(new SettingsStorage())
 
-    expect(store.save({ muted: true, reducedMotion: true })).toEqual({
+    expect(store.save({ muted: true, reducedMotion: true, volume: 0.4 })).toEqual({
       ok: true,
     })
     expect(store.load()).toMatchObject({
       status: 'ready',
-      value: { muted: true, reducedMotion: true },
+      value: { muted: true, reducedMotion: true, volume: 0.4 },
     })
   })
 
@@ -49,7 +49,26 @@ describe('settings store', () => {
 
     expect(createSettingsStore(storage).load()).toMatchObject({
       status: 'ready',
-      value: { muted: true, reducedMotion: true },
+      value: { muted: true, reducedMotion: true, volume: 0.7 },
+      migrated: true,
+    })
+  })
+
+  it('migrates version-one settings with the default volume', () => {
+    const storage = new SettingsStorage()
+    storage.setItem(
+      SETTINGS_SAVE_KEY,
+      JSON.stringify({
+        version: 1,
+        savedAt: '2026-07-20T00:00:00.000Z',
+        seed: null,
+        data: { muted: false, reducedMotion: true },
+      }),
+    )
+
+    expect(createSettingsStore(storage).load()).toMatchObject({
+      status: 'ready',
+      value: { muted: false, reducedMotion: true, volume: 0.7 },
       migrated: true,
     })
   })
@@ -59,7 +78,7 @@ describe('settings store', () => {
     storage.setItem(
       SETTINGS_SAVE_KEY,
       JSON.stringify({
-        version: 1,
+        version: 2,
         savedAt: '2026-07-20T00:00:00.000Z',
         seed: null,
         data: {},
@@ -85,6 +104,7 @@ describe('settings store', () => {
     expect(DEFAULT_SETTINGS).toEqual({
       muted: false,
       reducedMotion: false,
+      volume: 0.7,
     })
     expect(Object.isFrozen(DEFAULT_SETTINGS)).toBe(true)
   })

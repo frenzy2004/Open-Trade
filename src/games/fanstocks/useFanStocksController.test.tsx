@@ -107,6 +107,7 @@ function makeWrapper(
   const initialSettings = {
     muted: false,
     reducedMotion: options.reducedMotion ?? false,
+    volume: 0.7,
   };
   return function Wrapper({ children }: PropsWithChildren) {
     return (
