@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { applyCommands } from './applyCommands'
+import {
+  applyCommands,
+  JUMP_DURATION_MS,
+  ROLL_DURATION_MS,
+  settleVerticalState,
+} from './applyCommands'
 import {
   COLLISION_HALF_WINDOW_M,
   detectCollision,
@@ -47,42 +52,58 @@ describe('runner movement commands', () => {
     expect(state.lane).toBe(1)
   })
 
-  it('keeps jump active for exactly 650ms without command extension', () => {
+  it('keeps jump active for the 760ms threshold without command extension', () => {
     const state = runner()
 
     applyCommands(state, ['JUMP'])
     expect(state.vertical).toBe('jumping')
-    expect(state.verticalUntilMs).toBe(650)
+    expect(state.verticalUntilMs).toBe(760)
 
     stepRunner(state, [], 300)
     applyCommands(state, ['JUMP', 'ROLL'])
     expect(state.vertical).toBe('jumping')
-    expect(state.verticalUntilMs).toBe(650)
+    expect(state.verticalUntilMs).toBe(760)
 
-    stepRunner(state, [], 350 - FIXED_STEP_MS)
+    stepRunner(state, [], 450)
     expect(state.vertical).toBe('jumping')
     stepRunner(state, [], FIXED_STEP_MS)
+    expect(state.elapsedMs).toBeCloseTo(760 + (20 / 3), 8)
+    expect(state.vertical).toBe('grounded')
+    expect(state.verticalUntilMs).toBe(0)
+  })
+
+  it('keeps roll active for exactly 650ms without command extension', () => {
+    const state = runner()
+
+    applyCommands(state, ['ROLL'])
+    expect(state.vertical).toBe('rolling')
+    expect(state.verticalUntilMs).toBe(650)
+
+    stepRunner(state, [], 200)
+    applyCommands(state, ['ROLL', 'JUMP'])
+    expect(state.vertical).toBe('rolling')
+    expect(state.verticalUntilMs).toBe(650)
+
+    stepRunner(state, [], 450)
     expect(state.elapsedMs).toBeCloseTo(650, 8)
     expect(state.vertical).toBe('grounded')
     expect(state.verticalUntilMs).toBe(0)
   })
 
-  it('keeps roll active for exactly 500ms without command extension', () => {
-    const state = runner()
-
-    applyCommands(state, ['ROLL'])
-    expect(state.vertical).toBe('rolling')
-    expect(state.verticalUntilMs).toBe(500)
-
-    stepRunner(state, [], 200)
-    applyCommands(state, ['ROLL', 'JUMP'])
-    expect(state.vertical).toBe('rolling')
-    expect(state.verticalUntilMs).toBe(500)
-
-    stepRunner(state, [], 300)
-    expect(state.elapsedMs).toBeCloseTo(500, 8)
-    expect(state.vertical).toBe('grounded')
-    expect(state.verticalUntilMs).toBe(0)
+  it('settles jump and roll exactly at their configured boundaries', () => {
+    for (const [command, vertical, duration] of [
+      ['JUMP', 'jumping', JUMP_DURATION_MS],
+      ['ROLL', 'rolling', ROLL_DURATION_MS],
+    ] as const) {
+      const state = runner()
+      applyCommands(state, [command])
+      state.elapsedMs = duration - 0.001
+      settleVerticalState(state)
+      expect(state.vertical).toBe(vertical)
+      state.elapsedMs = duration
+      settleVerticalState(state)
+      expect(state.vertical).toBe('grounded')
+    }
   })
 
   it('does not move or begin actions outside the running phase', () => {

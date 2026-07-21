@@ -13,8 +13,10 @@ const LOGICAL_WIDTH = 1280
 const LOGICAL_HEIGHT = 720
 const MAX_FRAME_DELTA_MS = 250
 const MAX_CATCH_UP_STEPS = 5
+const MAX_PENDING_COMMANDS = 8
 const SEMANTIC_PUBLISH_TICKS = 6
 const FRAME_EPSILON_MS = 1e-9
+const EMPTY_COMMANDS = Object.freeze([]) as readonly RunnerCommand[]
 
 export interface RunnerGameInstance {
   destroy(removeCanvas: boolean): void
@@ -46,6 +48,7 @@ export interface CreateRunnerGameOptions {
 export interface RunnerGameHandle {
   destroy(): void
   dispatch(command: RunnerCommand): void
+  completeTutorial(): void
   setReducedMotion(reducedMotion: boolean): void
   snapshot(): RunnerState
   diagnostics(): RunnerDiagnostics
@@ -53,7 +56,10 @@ export interface RunnerGameHandle {
 
 export interface RunnerDiagnostics {
   readonly catchUpLimit: number
+  readonly commandDrainCount: number
+  readonly droppedCommands: number
   readonly droppedFrameMs: number
+  readonly pendingCommands: number
 }
 
 function freezeEntity(entity: RunnerEntity): RunnerEntity {
@@ -109,12 +115,23 @@ export function createRunnerGame(
     ...(options.bestScore === undefined ? {} : { bestScore: options.bestScore }),
   }
   const state = createRunnerState(stateConfig)
-  const commands: RunnerCommand[] = []
+  if (options.tutorialComplete === false) state.phase = 'tutorial'
+  let pendingCommands: RunnerCommand[] = []
   let accumulatorMs = 0
+  let commandDrainCount = 0
+  let droppedCommands = 0
   let droppedFrameMs = 0
   let destroyed = false
   let autoPaused = false
   let lastPublished: RunnerState | null = null
+
+  const drainCommands = (): readonly RunnerCommand[] => {
+    if (pendingCommands.length === 0) return EMPTY_COMMANDS
+    const drained = pendingCommands
+    pendingCommands = []
+    commandDrainCount += 1
+    return drained
+  }
 
   const publish = (force = false) => {
     if (options.onSnapshot === undefined) return
@@ -140,7 +157,7 @@ export function createRunnerGame(
       accumulatorMs + FRAME_EPSILON_MS >= FIXED_STEP_MS
       && catchUpSteps < MAX_CATCH_UP_STEPS
     ) {
-      const frameCommands = commands.splice(0)
+      const frameCommands = drainCommands()
       stepRunner(state, frameCommands, FIXED_STEP_MS)
       accumulatorMs -= FIXED_STEP_MS
       catchUpSteps += 1
@@ -212,14 +229,41 @@ export function createRunnerGame(
   return {
     dispatch(command) {
       if (destroyed) return
+      if (state.phase === 'tutorial') {
+        if (command === 'MOVE_LEFT') state.lane = Math.max(-1, state.lane - 1) as -1 | 0 | 1
+        else if (command === 'MOVE_RIGHT') state.lane = Math.min(1, state.lane + 1) as -1 | 0 | 1
+        else if (command === 'JUMP') state.vertical = 'jumping'
+        else if (command === 'ROLL') state.vertical = 'rolling'
+        publish(true)
+        return
+      }
       if (command === 'PAUSE' || command === 'RESTART') {
+        pendingCommands.length = 0
         stepRunner(state, [command], 0)
         autoPaused = false
         accumulatorMs = 0
         publish(true)
         return
       }
-      commands.push(command)
+      if (pendingCommands.at(-1) === command) {
+        droppedCommands += 1
+        return
+      }
+      if (pendingCommands.length >= MAX_PENDING_COMMANDS) {
+        droppedCommands += 1
+        return
+      }
+      pendingCommands.push(command)
+    },
+    completeTutorial() {
+      if (destroyed || state.phase !== 'tutorial') return
+      state.phase = 'running'
+      state.lane = 0
+      state.vertical = 'grounded'
+      state.verticalUntilMs = 0
+      accumulatorMs = 0
+      pendingCommands.length = 0
+      publish(true)
     },
     setReducedMotion(reducedMotion) {
       if (destroyed) return
@@ -233,7 +277,10 @@ export function createRunnerGame(
     snapshot: () => snapshotState(state),
     diagnostics: () => Object.freeze({
       catchUpLimit: MAX_CATCH_UP_STEPS,
+      commandDrainCount,
+      droppedCommands,
       droppedFrameMs,
+      pendingCommands: pendingCommands.length,
     }),
     destroy() {
       if (destroyed) return
