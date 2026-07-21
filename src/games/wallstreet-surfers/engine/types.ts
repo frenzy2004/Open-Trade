@@ -4,6 +4,7 @@ export const MAX_SPEED_MPS = 22
 export const SPEED_STEP_MPS = 0.12
 export const SPEED_STEP_DISTANCE_M = 100
 export const INITIAL_POWELL_GAP = 60
+export const MAX_FIXED_DELTA_MS = 1_000_000
 
 export type Lane = -1 | 0 | 1
 export type RunnerPhase = 'tutorial' | 'running' | 'paused' | 'gameOver'
@@ -17,6 +18,7 @@ export type RunnerCommand =
   | 'RESTART'
 
 export type RunnerFailureKind = 'barrier' | 'overhead' | 'train' | 'powell'
+export type ObstacleKind = 'barrier' | 'overhead' | 'train' | 'coin'
 
 export interface RunnerFailure {
   kind: RunnerFailureKind
@@ -30,6 +32,12 @@ export interface RunnerEntity {
   kind: string
   distanceM: number
   resolved: boolean
+}
+
+export interface RunnerObstacle extends RunnerEntity {
+  kind: ObstacleKind
+  lane: Lane
+  ticker?: string
 }
 
 export interface RunnerConfig {
@@ -86,6 +94,35 @@ const FAILURE_KINDS: readonly RunnerFailureKind[] = [
   'train',
   'powell',
 ]
+const OBSTACLE_KINDS: readonly ObstacleKind[] = [
+  'barrier',
+  'overhead',
+  'train',
+  'coin',
+]
+const REQUIRED_STATE_FIELDS = [
+  'seed',
+  'phase',
+  'elapsedMs',
+  'distanceM',
+  'speedMps',
+  'lane',
+  'vertical',
+  'verticalUntilMs',
+  'score',
+  'bestScore',
+  'coins',
+  'streak',
+  'powellGap',
+  'entities',
+  'nextSpawnIndex',
+  'lastFailure',
+  'reducedMotion',
+  'tick',
+  'simulationRemainderMs',
+] as const
+const MAX_COMMANDS_PER_STEP = 64
+const MAX_RUNNER_ENTITIES = 10_000
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -103,21 +140,89 @@ function isSafeNonNegativeInteger(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) >= 0
 }
 
-function assertEntity(entity: unknown, index: number): asserts entity is RunnerEntity {
-  const prefix = `Runner state entities[${index}]`
-  if (!isRecord(entity)) throw new TypeError(`${prefix} must be an object`)
-  if (!isNonEmptyString(entity.id)) throw new TypeError(`${prefix}.id must be a non-empty string`)
-  if (!isNonEmptyString(entity.kind)) throw new TypeError(`${prefix}.kind must be a non-empty string`)
-  if (!isFiniteNonNegative(entity.distanceM)) {
+function assertOwnProperties(
+  record: Record<string, unknown>,
+  prefix: string,
+  fields: readonly string[],
+): void {
+  for (const field of fields) {
+    if (!Object.hasOwn(record, field)) {
+      throw new TypeError(`${prefix}.${field} must be an own property`)
+    }
+  }
+}
+
+function assertOptionalOwnProperty(
+  record: Record<string, unknown>,
+  prefix: string,
+  field: string,
+): void {
+  if (field in record && !Object.hasOwn(record, field)) {
+    throw new TypeError(`${prefix}.${field} must be an own property`)
+  }
+}
+
+function assertDenseOwnArray(
+  values: unknown[],
+  prefix: string,
+  maximumLength: number,
+): void {
+  if (values.length > maximumLength) {
+    throw new RangeError(`${prefix} exceeds the maximum length of ${maximumLength}`)
+  }
+  for (let index = 0; index < values.length; index += 1) {
+    if (!Object.hasOwn(values, index)) {
+      throw new TypeError(`${prefix} must be a dense own-slot array`)
+    }
+  }
+}
+
+export function assertRunnerObstacle(
+  obstacle: unknown,
+  prefix = 'Runner obstacle',
+): asserts obstacle is RunnerObstacle {
+  if (!isRecord(obstacle)) throw new TypeError(`${prefix} must be an object`)
+  assertOwnProperties(obstacle, prefix, ['id'])
+  if (!isNonEmptyString(obstacle.id)) {
+    throw new TypeError(`${prefix}.id must be a non-empty string`)
+  }
+  assertOwnProperties(obstacle, prefix, ['kind'])
+  if (!OBSTACLE_KINDS.includes(obstacle.kind as ObstacleKind)) {
+    throw new TypeError(`${prefix}.kind is invalid`)
+  }
+  assertOwnProperties(obstacle, prefix, ['lane'])
+  if (obstacle.lane !== -1 && obstacle.lane !== 0 && obstacle.lane !== 1) {
+    throw new RangeError(`${prefix}.lane must be -1, 0, or 1`)
+  }
+  assertOwnProperties(obstacle, prefix, ['distanceM'])
+  if (!isFiniteNonNegative(obstacle.distanceM)) {
     throw new RangeError(`${prefix}.distanceM must be finite and non-negative`)
   }
-  if (typeof entity.resolved !== 'boolean') {
+  assertOwnProperties(obstacle, prefix, ['resolved'])
+  if (typeof obstacle.resolved !== 'boolean') {
     throw new TypeError(`${prefix}.resolved must be a boolean`)
   }
+  assertOptionalOwnProperty(obstacle, prefix, 'ticker')
+  if (obstacle.ticker !== undefined && !isNonEmptyString(obstacle.ticker)) {
+    throw new TypeError(`${prefix}.ticker must be a non-empty string`)
+  }
+  if (obstacle.kind === 'train' && !isNonEmptyString(obstacle.ticker)) {
+    throw new TypeError(`${prefix}.ticker is required for train obstacles`)
+  }
+}
+
+function assertEntity(entity: unknown, index: number): asserts entity is RunnerEntity {
+  assertRunnerObstacle(entity, `Runner state entities[${index}]`)
 }
 
 function assertFailure(failure: unknown): asserts failure is RunnerFailure {
   if (!isRecord(failure)) throw new TypeError('Runner state lastFailure must be an object or null')
+  assertOwnProperties(failure, 'Runner state lastFailure', [
+    'kind',
+    'message',
+    'tip',
+  ])
+  assertOptionalOwnProperty(failure, 'Runner state lastFailure', 'ticker')
   if (!FAILURE_KINDS.includes(failure.kind as RunnerFailureKind)) {
     throw new TypeError('Runner state lastFailure.kind is invalid')
   }
@@ -134,6 +239,8 @@ function assertFailure(failure: unknown): asserts failure is RunnerFailure {
 
 export function assertRunnerConfig(config: unknown): asserts config is RunnerConfig {
   if (!isRecord(config)) throw new TypeError('Runner config must be an object')
+  assertOwnProperties(config, 'Runner config', ['seed', 'reducedMotion'])
+  assertOptionalOwnProperty(config, 'Runner config', 'bestScore')
   if (typeof config.seed !== 'string' || !SEED_PATTERN.test(config.seed)) {
     throw new TypeError('Runner config seed must match challenge seed format')
   }
@@ -149,7 +256,9 @@ export function assertRunnerCommands(
   commands: unknown,
 ): asserts commands is readonly RunnerCommand[] {
   if (!Array.isArray(commands)) throw new TypeError('Runner commands must be an array')
-  for (const command of commands) {
+  assertDenseOwnArray(commands, 'Runner commands', MAX_COMMANDS_PER_STEP)
+  for (let index = 0; index < commands.length; index += 1) {
+    const command = commands[index]
     if (!COMMANDS.includes(command as RunnerCommand)) {
       throw new TypeError('Runner commands contain an invalid command')
     }
@@ -158,6 +267,7 @@ export function assertRunnerCommands(
 
 export function assertRunnerState(state: unknown): asserts state is RunnerState {
   if (!isRecord(state)) throw new TypeError('Runner state must be an object')
+  assertOwnProperties(state, 'Runner state', REQUIRED_STATE_FIELDS)
   if (typeof state.seed !== 'string' || !SEED_PATTERN.test(state.seed)) {
     throw new TypeError('Runner state seed must match challenge seed format')
   }
@@ -203,7 +313,16 @@ export function assertRunnerState(state: unknown): asserts state is RunnerState 
   if (!Array.isArray(state.entities)) {
     throw new TypeError('Runner state entities must be an array')
   }
-  state.entities.forEach(assertEntity)
+  assertDenseOwnArray(state.entities, 'Runner state entities', MAX_RUNNER_ENTITIES)
+  const entityIds = new Set<string>()
+  for (let index = 0; index < state.entities.length; index += 1) {
+    const entity = state.entities[index]
+    assertEntity(entity, index)
+    if (entityIds.has(entity.id)) {
+      throw new TypeError('Runner state entity IDs must be unique')
+    }
+    entityIds.add(entity.id)
+  }
   if (!isSafeNonNegativeInteger(state.nextSpawnIndex)) {
     throw new RangeError('Runner state nextSpawnIndex must be a non-negative safe integer')
   }
