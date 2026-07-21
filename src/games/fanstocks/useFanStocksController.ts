@@ -148,6 +148,13 @@ function loadInitialState(search: string): InitialControllerState {
         recoveryBlocked: true,
       };
     }
+    if (loaded.status === 'ready' && loaded.value.state.seed === parsed.seed) {
+      return {
+        state: loaded.value.state,
+        saveProblem: null,
+        recoveryBlocked: false,
+      };
+    }
     return {
       state: createFanStocksState(parsed.seed),
       saveProblem: null,

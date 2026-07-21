@@ -247,6 +247,20 @@ describe('useFanStocksController initialization and persistence', () => {
     expect(result.current.saveProblem).toBeNull();
   });
 
+  it('restores a ready save when the explicit challenge seed matches it', () => {
+    saveState(fanStocksReducer(createFanStocksState('hook-seed'), {
+      type: 'START_LEAGUE',
+    }));
+    const { result } = renderHook(() => useFanStocksController(), {
+      wrapper: makeWrapper(),
+    });
+    expect(result.current.state).toMatchObject({
+      seed: 'hook-seed',
+      phase: 'tutorial',
+    });
+    expect(result.current.saveProblem).toBeNull();
+  });
+
   it.each([
     ['/fanstocks?seed=bad%20seed&rules=1', 'malformed'],
     ['/fanstocks?seed=explicit-seed&rules=2', 'incompatible'],
