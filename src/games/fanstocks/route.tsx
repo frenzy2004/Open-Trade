@@ -1,4 +1,5 @@
 import { FANSTOCKS_METADATA } from '../../app/routes/metadata'
+import { resetGameProgress } from '../../app/routes/progressStore'
 import type { GameRouteModule } from '../../app/routes/types'
 import { parseChallenge } from '../../shared/routing/challenge'
 import FanStocksRoute from './FanStocksRoute'
@@ -12,7 +13,13 @@ export const gameRoute: GameRouteModule = Object.freeze({
   metadata: FANSTOCKS_METADATA,
   Entry: FanStocksRoute,
   saveKey: fanStocksSaveCodec.key,
-  reset: resetFanStocksProgress,
+  reset: () => {
+    resetFanStocksProgress()
+    const progress = resetGameProgress('fanstocks')
+    if (!progress.ok) {
+      throw new Error('FanStocks progress reset failed: ' + progress.reason)
+    }
+  },
   getProgressBadge: () => getFanStocksProgressBadge() ?? {
     label: 'FanStocks',
     value: 'No active league',
