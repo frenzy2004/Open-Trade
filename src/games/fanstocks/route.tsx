@@ -1,35 +1,22 @@
-/* eslint-disable react-refresh/only-export-components */
-
 import { FANSTOCKS_METADATA } from '../../app/routes/metadata'
-import {
-  readGameProgress,
-  resetGameProgress,
-} from '../../app/routes/progressStore'
 import type { GameRouteModule } from '../../app/routes/types'
-import { clearStoredGame } from '../../shared/persistence/gameStore'
 import { parseChallenge } from '../../shared/routing/challenge'
-import { GameFoundationPage } from '../GameFoundationPage'
+import FanStocksRoute from './FanStocksRoute'
+import {
+  fanStocksSaveCodec,
+  getFanStocksProgressBadge,
+  resetFanStocksProgress,
+} from './persistence/fanStocksSave'
 
-const SAVE_KEY = 'open-trade:game:fanstocks'
-
-function FanStocksEntry() {
-  return <GameFoundationPage metadata={FANSTOCKS_METADATA} />
-}
-
-export const gameRoute: GameRouteModule = {
+export const gameRoute: GameRouteModule = Object.freeze({
   metadata: FANSTOCKS_METADATA,
-  Entry: FanStocksEntry,
-  saveKey: SAVE_KEY,
-  reset: () => {
-    const cleared = clearStoredGame(SAVE_KEY)
-    if (!cleared.ok) {
-      throw new Error('FanStocks game save reset failed: ' + cleared.reason)
-    }
-    const progress = resetGameProgress('fanstocks')
-    if (!progress.ok) {
-      throw new Error('FanStocks progress reset failed: ' + progress.reason)
-    }
+  Entry: FanStocksRoute,
+  saveKey: fanStocksSaveCodec.key,
+  reset: resetFanStocksProgress,
+  getProgressBadge: () => getFanStocksProgressBadge() ?? {
+    label: 'FanStocks',
+    value: 'No active league',
+    tone: 'neutral',
   },
-  getProgressBadge: () => readGameProgress('fanstocks'),
   parseChallenge,
-}
+})

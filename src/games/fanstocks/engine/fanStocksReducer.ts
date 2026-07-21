@@ -21,6 +21,7 @@ import {
   createOutgoingTrade,
   decideOutgoingTrade,
   resolveTrade,
+  validateTrade,
   type TradeEvent,
   type TradeOffer,
 } from './trades';
@@ -148,11 +149,18 @@ function handleIncomingDecision(
 ): FanStocksState {
   if (
     state.phase !== 'market'
-    || state.pendingTrade?.direction !== 'incoming'
+    || state.pendingTrade === null
     || state.portfolios === null
     || (decision !== 'accepted' && decision !== 'passed')
   ) {
     return state;
+  }
+
+  const validation = validateTrade(state.portfolios, state.pendingTrade);
+  if (!validation.ok || state.pendingTrade.direction !== 'incoming') {
+    return decision === 'passed'
+      ? Object.freeze({ ...state, pendingTrade: null })
+      : state;
   }
 
   const resolution = resolveTrade(

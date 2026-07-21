@@ -41,11 +41,21 @@ const INVALID_CARD_STRUCTURE_REASON = 'Card registry must structurally match can
 
 function validateOfferShape(offer: TradeOffer): TradeValidation {
   const candidate = (
-    typeof offer === 'object' && offer !== null ? offer : {}
+    typeof offer === 'object' && offer !== null && !Array.isArray(offer) ? offer : {}
   ) as Partial<Record<keyof TradeOffer, unknown>>;
 
   if (candidate.direction !== 'incoming' && candidate.direction !== 'outgoing') {
     return { ok: false, reason: 'Trade direction must be incoming or outgoing' };
+  }
+  if (![
+    'id',
+    'direction',
+    'opponentId',
+    'playerGives',
+    'playerReceives',
+    'createdAtTick',
+  ].every((field) => Object.hasOwn(candidate, field))) {
+    return { ok: false, reason: 'Trade offer fields must be owned' };
   }
   if (typeof candidate.opponentId !== 'string' || !AI_IDS.has(candidate.opponentId as AiId)) {
     return { ok: false, reason: 'Trade opponent must be a known AI participant' };

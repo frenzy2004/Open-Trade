@@ -92,6 +92,29 @@ function findOutgoingDecision(
 }
 
 describe('fanStocksReducer', () => {
+  it('safely passes a malformed incoming offer so the market can resume', () => {
+    const market = enterMarket('malformed-incoming')
+    const malformed = {
+      ...market,
+      pendingTrade: {
+        id: 'bad-offer',
+        direction: 'incoming',
+        opponentId: 'momentum',
+        playerGives: 'UNKNOWN',
+        playerReceives: 'SMCI',
+        createdAtTick: 0,
+      },
+    } as unknown as FanStocksState
+
+    const resumed = fanStocksReducer(malformed, {
+      type: 'DECIDE_INCOMING',
+      decision: 'passed',
+    })
+
+    expect(resumed.pendingTrade).toBeNull()
+    expect(resumed.tradeLog).toEqual(market.tradeLog)
+  })
+
   it('accepts only seeds supported by the foundation challenge formatter', () => {
     for (const seed of ['league_1', 'LEAGUE-2', 'a', 'x'.repeat(64)]) {
       const state = createFanStocksState(seed);
