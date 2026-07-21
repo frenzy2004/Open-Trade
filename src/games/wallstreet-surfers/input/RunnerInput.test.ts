@@ -251,6 +251,7 @@ describe('RunnerInput', () => {
       expect(send(formInput, 'Space').defaultPrevented).toBe(false)
       expect(send(editable, 'ArrowLeft').defaultPrevented).toBe(false)
       expect(send(button, 'Space').defaultPrevented).toBe(false)
+      expect(send(button, 'ArrowLeft').defaultPrevented).toBe(true)
       send(window, 'ArrowRight', true)
 
       const dialog = document.createElement('dialog')
@@ -263,14 +264,48 @@ describe('RunnerInput', () => {
       document.body.append(runnerSurface)
       const runnerEvent = send(runnerSurface, 'ArrowRight')
       expect(runnerEvent.defaultPrevented).toBe(true)
-      expect(dispatch).toHaveBeenCalledTimes(1)
-      expect(dispatch).toHaveBeenCalledWith('MOVE_RIGHT')
+      expect(dispatch.mock.calls).toEqual([
+        ['MOVE_LEFT'],
+        ['MOVE_RIGHT'],
+      ])
       runnerSurface.remove()
     } finally {
       runnerInput.detach()
       formInput.remove()
       editable.remove()
       button.remove()
+    }
+  })
+
+  it('suppresses gamepad edges owned by an open modal', () => {
+    const left = { pressed: true }
+    const buttons = Array.from({ length: 16 }, () => ({ pressed: false }))
+    buttons[14] = left
+    const gamepad: RunnerGamepadLike = {
+      connected: true,
+      mapping: 'standard',
+      axes: [0, 0],
+      buttons,
+    }
+    const dispatch = vi.fn<(command: RunnerCommand) => void>()
+    const input = new RunnerInput(dispatch, { getGamepads: () => [gamepad] })
+    const dialog = document.createElement('dialog')
+    dialog.setAttribute('open', '')
+    document.body.append(dialog)
+
+    try {
+      input.pollGamepad()
+      expect(dispatch).not.toHaveBeenCalled()
+      dialog.remove()
+      input.pollGamepad()
+      expect(dispatch).not.toHaveBeenCalled()
+      left.pressed = false
+      input.pollGamepad()
+      left.pressed = true
+      input.pollGamepad()
+      expect(dispatch).toHaveBeenCalledWith('MOVE_LEFT')
+    } finally {
+      dialog.remove()
     }
   })
 

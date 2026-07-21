@@ -273,6 +273,27 @@ describe('createRunnerGame', () => {
     handle.destroy()
   })
 
+  it('records a bounded 600-step CPU release sample', () => {
+    const gameFactory = vi.fn<RunnerGameFactory>(() => ({ destroy: vi.fn() }))
+    const handle = createRunnerGame(document.createElement('div'), {
+      seed: 'e2e-6',
+      reducedMotion: false,
+      gameFactory,
+    })
+    const [creationCall] = gameFactory.mock.calls
+    if (creationCall === undefined) throw new Error('Expected game creation')
+    for (let frame = 0; frame < 700; frame += 1) {
+      creationCall[0].scene.update(frame * (1000 / 60), 1000 / 60)
+    }
+
+    expect(handle.diagnostics()).toMatchObject({
+      sampledSimulationSteps: 600,
+      maxSimulationStepMs: expect.any(Number),
+    })
+    expect(handle.diagnostics().maxSimulationStepMs).toBeGreaterThanOrEqual(0)
+    handle.destroy()
+  })
+
   it('pauses world progression for an incomplete tutorial and starts in place', () => {
     const gameFactory = vi.fn<RunnerGameFactory>(() => ({ destroy: vi.fn() }))
     const handle = createRunnerGame(document.createElement('div'), {
@@ -449,6 +470,45 @@ describe('WallstreetSurfersRoute lifecycle', () => {
     expect(handle.setReducedMotion).toHaveBeenLastCalledWith(true)
   })
 
+  it('pauses only for the lifetime of an open modal dialog', async () => {
+    const state = createRunnerState({
+      seed: 'modal-pause',
+      reducedMotion: false,
+    })
+    const dispatch = vi.fn((command: string) => {
+      if (command === 'PAUSE') {
+        state.phase = state.phase === 'running' ? 'paused' : 'running'
+      }
+    })
+    const handle = {
+      destroy: vi.fn(),
+      dispatch,
+      snapshot: () => state,
+      setReducedMotion: vi.fn(),
+      diagnostics: vi.fn(),
+    } as unknown as RunnerGameHandle
+
+    render(
+      <MemoryRouter initialEntries={['/wallstreet-surfers?seed=modal-pause&rules=1']}>
+        <SettingsProvider store={createSettingsStore(createMemoryStorage())}>
+          <WallstreetSurfersRoute
+            createGame={() => handle}
+            store={createRunnerStore(createMemoryStorage())}
+          />
+        </SettingsProvider>
+      </MemoryRouter>,
+    )
+    const dialog = document.createElement('dialog')
+    dialog.setAttribute('open', '')
+    document.body.append(dialog)
+
+    await waitFor(() => expect(dispatch).toHaveBeenCalledTimes(1))
+    expect(state.phase).toBe('paused')
+    dialog.remove()
+    await waitFor(() => expect(dispatch).toHaveBeenCalledTimes(2))
+    expect(state.phase).toBe('running')
+  })
+
   it('surfaces malformed explicit challenge links', () => {
     render(
       <MemoryRouter initialEntries={['/wallstreet-surfers?seed=%20bad&rules=nope']}>
@@ -575,6 +635,8 @@ describe('WallstreetSurfersRoute lifecycle', () => {
         commandDrainCount: 0,
         droppedCommands: 0,
         droppedFrameMs: 0,
+        sampledSimulationSteps: 0,
+        maxSimulationStepMs: 0,
         pendingCommands: 0,
       }),
     }

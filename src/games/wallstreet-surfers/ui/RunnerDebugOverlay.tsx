@@ -36,7 +36,7 @@ export function RunnerDebugOverlay({
         <div><dt>Time</dt><dd>{state.elapsedMs.toFixed(1)} ms</dd></div>
         <div><dt>Distance</dt><dd data-runner-debug="distance">{state.distanceM.toFixed(2)} m</dd></div>
         <div><dt>Speed</dt><dd>{state.speedMps.toFixed(2)} m/s</dd></div>
-        <div><dt>Lane</dt><dd>{state.lane}</dd></div>
+        <div><dt>Lane</dt><dd data-runner-debug="lane">{state.lane}</dd></div>
         <div><dt>Vertical</dt><dd>{state.vertical}</dd></div>
         <div><dt>Next entity</dt><dd data-runner-debug="next-entity">{findNextEntity(state)}</dd></div>
         <div>
@@ -47,6 +47,18 @@ export function RunnerDebugOverlay({
         <div><dt>Powell gap</dt><dd>{state.powellGap.toFixed(2)}</dd></div>
         <div><dt>Dropped frame time</dt><dd>{diagnostics?.droppedFrameMs.toFixed(2) ?? '0.00'} ms</dd></div>
         <div><dt>Pending commands</dt><dd>{diagnostics?.pendingCommands ?? 0}</dd></div>
+        <div>
+          <dt>CPU samples</dt>
+          <dd data-runner-debug="cpu-samples">
+            {diagnostics?.sampledSimulationSteps ?? 0}
+          </dd>
+        </div>
+        <div>
+          <dt>Max step CPU</dt>
+          <dd data-runner-debug="max-step-cpu">
+            {(diagnostics?.maxSimulationStepMs ?? 0).toFixed(3)} ms
+          </dd>
+        </div>
       </dl>
     </aside>
   )

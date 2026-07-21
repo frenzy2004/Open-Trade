@@ -69,7 +69,9 @@ describe('MarketGatePrompt', () => {
     fireEvent.click(screen.getByRole('button', { name: /long.*up/i }))
     fireEvent.click(screen.getByRole('button', { name: /short.*down/i }))
     expect(onAnswer.mock.calls).toEqual([['long'], ['short']])
-    expect(view.container.querySelector('[aria-live]')).toBeNull()
+    expect(
+      screen.getByRole('region', { name: 'Make the call' }),
+    ).toHaveAttribute('aria-live', 'assertive')
 
     const feedback = state()
     feedback.lastGateFeedback = {
@@ -105,6 +107,8 @@ describe('RunnerDebugOverlay and RunnerGameOver', () => {
           commandDrainCount: 2,
           droppedCommands: 1,
           droppedFrameMs: 3,
+          sampledSimulationSteps: 600,
+          maxSimulationStepMs: 1.25,
           pendingCommands: 0,
         }}
       />,
@@ -141,6 +145,7 @@ describe('RunnerDebugOverlay and RunnerGameOver', () => {
       </MemoryRouter>,
     )
     expect(screen.getByRole('heading', { name: 'NVLN train flattened you' })).toBeInTheDocument()
+    expect(screen.getByRole('alertdialog')).toHaveFocus()
     expect(screen.getByText('Switch lanes before the ticker train')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Run again' }))
     fireEvent.click(screen.getByRole('button', { name: 'Challenge a friend' }))

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createRunnerState } from './createRunnerState'
 import { FIXED_STEP_MS } from './types'
 import {
+  GATE_FEEDBACK_VISIBLE_TICKS,
   createRunnerRuntime,
   stepRunnerRuntime,
 } from './runnerRuntime'
@@ -109,5 +110,27 @@ describe('live runner runtime', () => {
       message: 'Powell closed the gap',
       tip: 'Build the gap with correct LONG or SHORT calls',
     })
+  })
+
+  it('expires resolved gate feedback after its three-second display window', () => {
+    const runtime = createRunnerRuntime('feedback-runtime', 0)
+    const state = createRunnerState({ seed: 'feedback-runtime', reducedMotion: false })
+    state.lastGateFeedback = {
+      gateId: 'earnings-beat',
+      ticker: 'NVLN',
+      answer: 'long',
+      expected: 'long',
+      correct: true,
+      timedOut: false,
+      scoreDelta: 100,
+      explanation: 'The broad earnings beat supports a positive market call.',
+      resolvedAtTick: 0,
+    }
+    state.tick = GATE_FEEDBACK_VISIBLE_TICKS - 1
+
+    stepRunnerRuntime(runtime, state, [], FIXED_STEP_MS)
+    expect(state.lastGateFeedback).not.toBeNull()
+    stepRunnerRuntime(runtime, state, [], FIXED_STEP_MS)
+    expect(state.lastGateFeedback).toBeNull()
   })
 })
