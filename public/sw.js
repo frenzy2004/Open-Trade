@@ -36,7 +36,7 @@ async function networkFirstNavigation(request) {
   const cache = await caches.open(CACHE_NAME)
   try {
     const response = await fetch(request)
-    if (response.ok) {
+    if (response.status === 200) {
       await cache.put(request, response.clone())
       await cache.put(scopeRoot, response.clone())
     }
@@ -74,7 +74,9 @@ self.addEventListener('fetch', (event) => {
   if (!isLocalMediaRequest(request, url)) return
 
   const refresh = fetch(request).then(async (response) => {
-    if (response.ok) {
+    // CacheStorage rejects partial (206) audio responses. Return those live,
+    // then cache the first complete 200 response when the browser requests it.
+    if (response.status === 200) {
       const cache = await caches.open(CACHE_NAME)
       await cache.put(request, response.clone())
     }
