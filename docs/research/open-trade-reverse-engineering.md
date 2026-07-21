@@ -110,3 +110,26 @@ Date: 2026-07-21
 - Evidence: `coin-pickup` measured -104.8 dBFS true peak; `ui-confirm` and `coin-pickup` integrated near -70 LUFS; `market-failure`, `market-success`, and `collision` reached -0.4/-0.4/-0.0 dBFS; `atrim` alone ended `ui-confirm` and failure clips early.
 - Recovery: let ffmpeg probe the actual input bytes, trim then `apad` to the plan duration, normalize to the plan target, and use a conservative final limiter. Validate the encoded Ogg with ffprobe plus ffmpeg `volumedetect` and EBU R128 output for format, duration, non-silence, true peak, and integrated loudness.
 - Rule: do not reject integrated LUFS for clips shorter than 400 ms; it is not stable over EBU R128's analysis window. For longer high-crest transients, retain non-silence and true-peak gates rather than force -11 LUFS when that would exceed the -3 dBFS cap; production SFX remain 500 ms or longer and are normalized toward the target within that headroom.
+
+### FanStocks cross-boundary portfolio validation
+
+- Failure: the first trade implementation validated only the player and active opponent. Unknown cards on an uninvolved AI roster, incomplete registries, and later same-ticker records with altered scoring fields could still reach AI offer/decision code.
+- Recovery: one shared canonical portfolio predicate now requires the four exact participants to partition the 12 canonical tickers exactly once. Both incoming and outgoing trade paths also require complete card records that structurally match every canonical field and ordered evidence tuple while allowing honest deep clones.
+- Follow-on failure: Friday ranking initially repeated a weaker local-only check, so cross-player duplicates and invented finite-priced tickers could produce authoritative results.
+- Recovery: trades and ranking now consume the same shared predicate; hostile duplicate and substitution probes fail at both boundaries.
+- Rule: a domain invariant belongs in one shared boundary. Validating only the objects a calculation happens to touch creates impossible global states that later look legitimate.
+
+### Reducer seed and routing contract mismatch
+
+- Failure: the written reducer plan used colon-delimited rematch seeds such as `base:rematch:1`, but the established challenge URL contract accepts only 1-64 ASCII letters, digits, `_`, and `-`. Padded input seeds were also stored unchanged even though the planned save decoder rejects non-trimmed seeds.
+- Evidence: `formatChallenge` rejected every colon-delimited rematch with `Challenge descriptor is invalid`; malformed `MOVE_DETAIL` directions also slipped through the typed boundary at runtime.
+- Recovery: initial/new-league seeds are challenge-safe by construction, rematches derive a compact deterministic `rematch-<index>-<hash>` seed, invalid directions and nullish actions preserve exact reducer identity, and repeated rematches remain URL-format compatible.
+- Rule: test typed reducers with runtime-hostile payloads and test generated identifiers against every downstream formatter/codec before treating a local state transition as valid.
+
+### Remote CI milestone proof
+
+- GitHub Actions run `29797533803` verified the lazy-route readiness repair.
+- Run `29799333019` verified the FanStocks market-engine milestone at `67694ae`.
+- Run `29801969052` verified the reviewed trade milestone at `3d77949`.
+- Run `29803179165` verified the shared ranking/portfolio-validation milestone at `28d1409`.
+- Run `29804742652` verified the deterministic reducer milestone at `e1532d6`.
