@@ -1,10 +1,15 @@
 import Phaser from 'phaser'
 import { createRunnerState } from '../engine/createRunnerState'
-import { stepRunner } from '../engine/stepRunner'
+import {
+  createRunnerRuntime,
+  stepRunnerRuntime,
+} from '../engine/runnerRuntime'
 import {
   FIXED_STEP_MS,
+  type ActiveMarketGate,
   type RunnerCommand,
   type RunnerEntity,
+  type RunnerGateFeedback,
   type RunnerState,
 } from '../engine/types'
 import { RunnerScene } from './RunnerScene'
@@ -66,6 +71,21 @@ function freezeEntity(entity: RunnerEntity): RunnerEntity {
   return Object.freeze({ ...entity })
 }
 
+function freezeActiveGate(gate: ActiveMarketGate | null): ActiveMarketGate | null {
+  return gate === null
+    ? null
+    : Object.freeze({
+        ...gate,
+        gate: Object.freeze({ ...gate.gate }),
+      })
+}
+
+function freezeGateFeedback(
+  feedback: RunnerGateFeedback | null,
+): RunnerGateFeedback | null {
+  return feedback === null ? null : Object.freeze({ ...feedback })
+}
+
 function snapshotState(state: RunnerState): RunnerState {
   const lastFailure = state.lastFailure === null
     ? null
@@ -73,6 +93,8 @@ function snapshotState(state: RunnerState): RunnerState {
   return Object.freeze({
     ...state,
     entities: Object.freeze(state.entities.map(freezeEntity)) as RunnerEntity[],
+    currentGate: freezeActiveGate(state.currentGate),
+    lastGateFeedback: freezeGateFeedback(state.lastGateFeedback),
     lastFailure,
   })
 }
@@ -87,11 +109,12 @@ function hasSemanticChange(previous: RunnerState, current: RunnerState): boolean
   return previous.phase !== current.phase
     || previous.lane !== current.lane
     || previous.vertical !== current.vertical
-    || previous.score !== current.score
     || previous.coins !== current.coins
     || previous.streak !== current.streak
-    || previous.powellGap !== current.powellGap
     || previous.reducedMotion !== current.reducedMotion
+    || previous.currentGate?.eventId !== current.currentGate?.eventId
+    || previous.lastGateFeedback?.resolvedAtTick
+      !== current.lastGateFeedback?.resolvedAtTick
     || previousFailure?.kind !== currentFailure?.kind
     || previousFailure?.message !== currentFailure?.message
     || previousFailure?.tip !== currentFailure?.tip
@@ -115,7 +138,9 @@ export function createRunnerGame(
     ...(options.bestScore === undefined ? {} : { bestScore: options.bestScore }),
   }
   const state = createRunnerState(stateConfig)
+  const runtime = createRunnerRuntime(options.seed)
   if (options.tutorialComplete === false) state.phase = 'tutorial'
+  else stepRunnerRuntime(runtime, state, EMPTY_COMMANDS, 0)
   let pendingCommands: RunnerCommand[] = []
   let accumulatorMs = 0
   let commandDrainCount = 0
@@ -158,7 +183,7 @@ export function createRunnerGame(
       && catchUpSteps < MAX_CATCH_UP_STEPS
     ) {
       const frameCommands = drainCommands()
-      stepRunner(state, frameCommands, FIXED_STEP_MS)
+      stepRunnerRuntime(runtime, state, frameCommands, FIXED_STEP_MS)
       accumulatorMs -= FIXED_STEP_MS
       catchUpSteps += 1
       if (Math.abs(accumulatorMs) < FRAME_EPSILON_MS) accumulatorMs = 0
@@ -210,7 +235,7 @@ export function createRunnerGame(
   const handleVisibility = () => {
     if (document.hidden) {
       if (state.phase === 'running') {
-        stepRunner(state, ['PAUSE'], 0)
+        stepRunnerRuntime(runtime, state, ['PAUSE'], 0)
         autoPaused = true
         accumulatorMs = 0
         publish()
@@ -218,7 +243,7 @@ export function createRunnerGame(
       return
     }
     if (autoPaused && state.phase === 'paused') {
-      stepRunner(state, ['PAUSE'], 0)
+      stepRunnerRuntime(runtime, state, ['PAUSE'], 0)
       autoPaused = false
       publish()
     }
@@ -239,12 +264,13 @@ export function createRunnerGame(
       }
       if (command === 'PAUSE' || command === 'RESTART') {
         pendingCommands.length = 0
-        stepRunner(state, [command], 0)
+        stepRunnerRuntime(runtime, state, [command], 0)
         autoPaused = false
         accumulatorMs = 0
         publish(true)
         return
       }
+      if (state.phase !== 'running') return
       if (pendingCommands.at(-1) === command) {
         droppedCommands += 1
         return
@@ -263,6 +289,7 @@ export function createRunnerGame(
       state.verticalUntilMs = 0
       accumulatorMs = 0
       pendingCommands.length = 0
+      stepRunnerRuntime(runtime, state, EMPTY_COMMANDS, 0)
       publish(true)
     },
     setReducedMotion(reducedMotion) {

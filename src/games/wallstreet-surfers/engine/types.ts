@@ -1,3 +1,9 @@
+import {
+  assertMarketGate,
+  type MarketDirection,
+  type MarketGate,
+} from '../content/marketGates'
+
 export const FIXED_STEP_MS = 1000 / 60
 export const START_SPEED_MPS = 8.5
 export const MAX_SPEED_MPS = 22
@@ -46,6 +52,25 @@ export interface RunnerConfig {
   bestScore?: number
 }
 
+export interface ActiveMarketGate {
+  readonly eventId: string
+  readonly promptDistanceM: number
+  readonly responseDistanceM: number
+  readonly gate: MarketGate
+}
+
+export interface RunnerGateFeedback {
+  readonly gateId: string
+  readonly ticker: string
+  readonly answer: MarketDirection
+  readonly expected: MarketDirection
+  readonly correct: boolean
+  readonly timedOut: boolean
+  readonly scoreDelta: number
+  readonly explanation: string
+  readonly resolvedAtTick: number
+}
+
 export interface RunnerState {
   seed: string
   phase: RunnerPhase
@@ -62,6 +87,8 @@ export interface RunnerState {
   powellGap: number
   entities: RunnerEntity[]
   nextSpawnIndex: number
+  currentGate: ActiveMarketGate | null
+  lastGateFeedback: RunnerGateFeedback | null
   lastFailure: RunnerFailure | null
   reducedMotion: boolean
   tick: number
@@ -116,6 +143,8 @@ const REQUIRED_STATE_FIELDS = [
   'powellGap',
   'entities',
   'nextSpawnIndex',
+  'currentGate',
+  'lastGateFeedback',
   'lastFailure',
   'reducedMotion',
   'tick',
@@ -237,6 +266,69 @@ function assertFailure(failure: unknown): asserts failure is RunnerFailure {
   }
 }
 
+function assertActiveMarketGate(gate: unknown): asserts gate is ActiveMarketGate {
+  if (!isRecord(gate)) throw new TypeError('Runner state currentGate must be an object or null')
+  assertOwnProperties(gate, 'Runner state currentGate', [
+    'eventId',
+    'promptDistanceM',
+    'responseDistanceM',
+    'gate',
+  ])
+  if (!isNonEmptyString(gate.eventId)) {
+    throw new TypeError('Runner state currentGate.eventId must be a non-empty string')
+  }
+  if (!isFiniteNonNegative(gate.promptDistanceM)) {
+    throw new RangeError('Runner state currentGate.promptDistanceM must be finite and non-negative')
+  }
+  if (
+    !isFiniteNonNegative(gate.responseDistanceM)
+    || gate.responseDistanceM < gate.promptDistanceM
+  ) {
+    throw new RangeError('Runner state currentGate.responseDistanceM must follow its prompt')
+  }
+  assertMarketGate(gate.gate, 'Runner state currentGate.gate')
+}
+
+function assertGateFeedback(
+  feedback: unknown,
+): asserts feedback is RunnerGateFeedback {
+  if (!isRecord(feedback)) {
+    throw new TypeError('Runner state lastGateFeedback must be an object or null')
+  }
+  assertOwnProperties(feedback, 'Runner state lastGateFeedback', [
+    'gateId',
+    'ticker',
+    'answer',
+    'expected',
+    'correct',
+    'timedOut',
+    'scoreDelta',
+    'explanation',
+    'resolvedAtTick',
+  ])
+  if (!isNonEmptyString(feedback.gateId) || !isNonEmptyString(feedback.ticker)) {
+    throw new TypeError('Runner state lastGateFeedback IDs must be non-empty strings')
+  }
+  if (
+    (feedback.answer !== 'long' && feedback.answer !== 'short')
+    || (feedback.expected !== 'long' && feedback.expected !== 'short')
+  ) {
+    throw new TypeError('Runner state lastGateFeedback answers must be long or short')
+  }
+  if (typeof feedback.correct !== 'boolean' || typeof feedback.timedOut !== 'boolean') {
+    throw new TypeError('Runner state lastGateFeedback flags must be booleans')
+  }
+  if (!isSafeNonNegativeInteger(feedback.scoreDelta)) {
+    throw new RangeError('Runner state lastGateFeedback.scoreDelta must be non-negative')
+  }
+  if (!isNonEmptyString(feedback.explanation)) {
+    throw new TypeError('Runner state lastGateFeedback.explanation must be non-empty')
+  }
+  if (!isSafeNonNegativeInteger(feedback.resolvedAtTick)) {
+    throw new RangeError('Runner state lastGateFeedback.resolvedAtTick must be non-negative')
+  }
+}
+
 export function assertRunnerConfig(config: unknown): asserts config is RunnerConfig {
   if (!isRecord(config)) throw new TypeError('Runner config must be an object')
   assertOwnProperties(config, 'Runner config', ['seed', 'reducedMotion'])
@@ -325,6 +417,10 @@ export function assertRunnerState(state: unknown): asserts state is RunnerState 
   }
   if (!isSafeNonNegativeInteger(state.nextSpawnIndex)) {
     throw new RangeError('Runner state nextSpawnIndex must be a non-negative safe integer')
+  }
+  if (state.currentGate !== null) assertActiveMarketGate(state.currentGate)
+  if (state.lastGateFeedback !== null) {
+    assertGateFeedback(state.lastGateFeedback)
   }
   if (state.lastFailure !== null) assertFailure(state.lastFailure)
   if (typeof state.reducedMotion !== 'boolean') {

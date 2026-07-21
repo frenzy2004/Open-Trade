@@ -26,6 +26,8 @@ export function createRunnerState(config: RunnerConfig): RunnerState {
     powellGap: INITIAL_POWELL_GAP,
     entities: [],
     nextSpawnIndex: 0,
+    currentGate: null,
+    lastGateFeedback: null,
     lastFailure: null,
     reducedMotion: config.reducedMotion,
     tick: 0,
