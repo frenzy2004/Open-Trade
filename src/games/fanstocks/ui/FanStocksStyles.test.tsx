@@ -2,6 +2,8 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import route from '../FanStocksRoute.tsx?raw'
+import portfolioRace from './PortfolioRace.tsx?raw'
+import tradeTransfer from './TradeTransferAnimation.tsx?raw'
 
 const css = readFileSync('src/games/fanstocks/fanstocks.css', 'utf8') as string
 
@@ -26,5 +28,25 @@ describe('FanStocks CSS contract', () => {
     expect(route).toContain("import './fanstocks.css'")
     expect(route).toContain("asset('fs-draft-room').url")
     expect(css).toContain('.fanstocks-app::before { position: absolute; }')
+  })
+
+  it('defines every stock artwork treatment emitted by the content registry', () => {
+    for (const key of [
+      'consumer',
+      'energy',
+      'healthcare',
+      'industrials',
+      'small-cap',
+      'software',
+      'sportsbook',
+    ]) {
+      expect(css).toContain(`.stock-art[data-art='${key}']`)
+    }
+  })
+
+  it('uses the defined global hidden-text utility throughout FanStocks', () => {
+    const componentSources = `${route}\n${portfolioRace}\n${tradeTransfer}`
+    expect(componentSources).not.toContain('sr-only')
+    expect(componentSources).toContain('visually-hidden')
   })
 })

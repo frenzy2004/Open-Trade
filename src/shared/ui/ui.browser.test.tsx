@@ -28,6 +28,25 @@ function DialogHarness() {
   )
 }
 
+function UnmountingDialogHarness() {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>Open transient dialog</Button>
+      {open ? (
+        <Dialog
+          open
+          onClose={() => setOpen(false)}
+          title="Transient dialog"
+        >
+          <Button onClick={() => setOpen(false)}>Complete dialog</Button>
+        </Dialog>
+      ) : null}
+    </>
+  )
+}
+
 function FocusTrapDialogHarness() {
   const [open, setOpen] = useState(false)
 
@@ -162,6 +181,16 @@ test('controlled dialog close explicitly focuses the original trigger', async ()
   await screen.getByRole('button', { name: 'Close How it works' }).click()
 
   expect(focusCallCount).toBeGreaterThan(0)
+  await expect.element(trigger).toHaveFocus()
+})
+
+test('dialog restores trigger focus when completion unmounts it while open', async () => {
+  const screen = await render(<UnmountingDialogHarness />)
+  const trigger = screen.getByRole('button', { name: 'Open transient dialog' })
+
+  await trigger.click()
+  await screen.getByRole('button', { name: 'Complete dialog' }).click()
+
   await expect.element(trigger).toHaveFocus()
 })
 

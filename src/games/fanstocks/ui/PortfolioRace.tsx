@@ -51,7 +51,7 @@ export function PortfolioRace({ portfolios, frames }: {
           />
         ))}
       </svg>
-      <table aria-label="Current portfolio standings" className="sr-only">
+      <table aria-label="Current portfolio standings" className="visually-hidden">
         <thead><tr><th>Portfolio</th><th>Value</th><th>Change</th></tr></thead>
         <tbody>
           {finalValues.map(({ id, value }) => (

@@ -117,7 +117,7 @@ export default function FanStocksRoute() {
 
   return (
     <div className="fanstocks-app" style={FANSTOCKS_ASSET_STYLE}>
-      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+      <p className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
         {shareStatus}
       </p>
 

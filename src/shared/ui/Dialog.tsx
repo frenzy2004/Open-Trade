@@ -96,7 +96,9 @@ export function Dialog({
     if (dialog.open) {
       dialog.close()
     }
-    previousFocusRef.current?.focus()
+    const previousFocus = previousFocusRef.current
+    previousFocusRef.current = null
+    previousFocus?.focus()
   }, [open])
 
   useEffect(() => {
@@ -109,6 +111,11 @@ export function Dialog({
 
       if (dialog.open) {
         dialog.close()
+      }
+      const previousFocus = previousFocusRef.current
+      previousFocusRef.current = null
+      if (previousFocus?.isConnected === true) {
+        previousFocus.focus()
       }
     }
   }, [])

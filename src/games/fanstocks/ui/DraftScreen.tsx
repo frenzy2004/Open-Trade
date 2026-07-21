@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import { ProgressBar } from '../../../shared/ui/ProgressBar'
 import { STOCK_BY_TICKER } from '../content/stocks'
 import type { StockCard, Ticker } from '../content/types'
@@ -293,11 +293,28 @@ export function DraftScreen({
     exactDraft === null
       ? 'Draft unavailable'
       : currentDraftLabel(exactDraft)
+  const activeRound = exactDraft?.status === 'selecting'
+    ? exactDraft.roundIndex
+    : null
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  const previousRoundRef = useRef(activeRound)
+
+  useEffect(() => {
+    const previousRound = previousRoundRef.current
+    previousRoundRef.current = activeRound
+    if (
+      activeRound !== null
+      && previousRound !== null
+      && activeRound !== previousRound
+    ) {
+      headingRef.current?.focus()
+    }
+  }, [activeRound])
 
   return (
     <section className="draft-screen" aria-labelledby={headingId}>
       <header className="draft-screen__header">
-        <h1 id={headingId}>{label}</h1>
+        <h1 id={headingId} ref={headingRef} tabIndex={-1}>{label}</h1>
         <ProgressBar
           value={draftedCount}
           max={DRAFT_SLOT_COUNT}

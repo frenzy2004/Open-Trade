@@ -1,5 +1,20 @@
 import type { StockCard, Ticker } from './types';
 
+const ARTWORK_KEY_BY_TICKER: Readonly<Record<string, string>> = Object.freeze({
+  XLE: 'energy',
+  DKNG: 'sportsbook',
+  HUBS: 'software',
+  AMZN: 'consumer',
+  ODFL: 'industrials',
+  SBUX: 'consumer',
+  LOW: 'consumer',
+  MPC: 'energy',
+  IWM: 'small-cap',
+  SMCI: 'software',
+  CTRI: 'industrials',
+  BMY: 'healthcare',
+});
+
 function createReadonlyMapView<K, V>(source: ReadonlyMap<K, V>): ReadonlyMap<K, V> {
   const view: ReadonlyMap<K, V> = {
     get size() { return source.size; },
@@ -30,7 +45,7 @@ const card = (
   return Object.freeze({
     ticker, company, sector, volatility, momentumBias, correlationGroup, thesis,
     evidence: frozenEvidence,
-    artworkKey: ticker.toLowerCase(),
+    artworkKey: ARTWORK_KEY_BY_TICKER[ticker] ?? 'fallback',
     syntheticDemo: true,
   });
 };

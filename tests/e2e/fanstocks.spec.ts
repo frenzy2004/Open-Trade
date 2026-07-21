@@ -18,10 +18,35 @@ async function draftFirstCandidate(page: Page, round: number) {
   await page.getByRole('button', { name: /^Draft [A-Z]{1,5}$/u }).click()
 }
 
-async function advanceMarketTicks(page: Page, count: number) {
-  for (let tick = 0; tick < count; tick += 1) {
+async function yieldToPage(page: Page) {
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    const channel = new MessageChannel()
+    channel.port1.onmessage = () => resolve()
+    channel.port2.postMessage(undefined)
+  }))
+}
+
+async function currentMarketTick(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    if (document.querySelector('.results-screen') !== null) return 60
+    const points = document
+      .querySelector(".portfolio-race polyline[data-participant='player']")
+      ?.getAttribute('points')
+      ?.trim()
+    return points === undefined || points === '' ? -1 : points.split(/\s+/u).length - 1
+  })
+}
+
+async function advanceMarketToTick(page: Page, target: number) {
+  let current = await currentMarketTick(page)
+  const attemptLimit = Math.max(1, (target - current) * 4)
+  for (let attempt = 0; current < target && attempt < attemptLimit; attempt += 1) {
+    await yieldToPage(page)
     await page.clock.runFor(1_250)
+    await yieldToPage(page)
+    current = await currentMarketTick(page)
   }
+  expect(current).toBe(target)
 }
 
 test('complete league drafts, trades, closes, persists, and rematches', async ({
@@ -45,7 +70,8 @@ test('complete league drafts, trades, closes, persists, and rematches', async ({
   ).toContainText('$50.00')
 
   await page.getByRole('button', { name: 'Set market speed to 4x' }).click()
-  await advanceMarketTicks(page, 10)
+  await advanceMarketToTick(page, 10)
+  expect(await currentMarketTick(page)).toBe(10)
   await expect(page.getByText('You receive')).toBeVisible()
   await page.getByRole('button', { name: /^Accept: receive /u }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Trade complete:' })).toBeVisible()
@@ -56,11 +82,11 @@ test('complete league drafts, trades, closes, persists, and rematches', async ({
   await page.getByRole('button', { name: 'Send trade offer' }).click()
   await expect(page.getByText(/Trade (accepted|rejected):/u).last()).toBeVisible()
 
-  await advanceMarketTicks(page, 15)
-  await page.getByRole('button', { name: 'Pass on trade' }).click()
-  await advanceMarketTicks(page, 15)
-  await page.getByRole('button', { name: 'Pass on trade' }).click()
-  await advanceMarketTicks(page, 20)
+  await advanceMarketToTick(page, 25)
+  await page.getByRole('button', { name: 'Pass on trade' }).press('Enter')
+  await advanceMarketToTick(page, 40)
+  await page.getByRole('button', { name: 'Pass on trade' }).press('Enter')
+  await advanceMarketToTick(page, 60)
   await expect(page.getByText('Friday close', { exact: true })).toBeVisible()
   await expect(page.locator('.results-ranking > li')).toHaveCount(4)
 

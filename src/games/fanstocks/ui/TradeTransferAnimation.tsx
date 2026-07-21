@@ -38,7 +38,7 @@ export function TradeTransferAnimation({ event, reducedMotion }: {
   if (accepted === null) return null
   return (
     <>
-      <p className="sr-only" role="status" aria-atomic="true">
+      <p className="visually-hidden" role="status" aria-atomic="true">
         Trade complete: received {accepted.playerReceives} and gave {accepted.playerGives}
       </p>
       {visible ? (

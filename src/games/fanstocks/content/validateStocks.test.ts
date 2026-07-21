@@ -16,6 +16,18 @@ describe('FanStocks content', () => {
     expect(STOCKS.every(({ syntheticDemo }) => syntheticDemo)).toBe(true);
   });
 
+  it('assigns every card to one of the differentiated local art treatments', () => {
+    expect(new Set(STOCKS.map(({ artworkKey }) => artworkKey))).toEqual(new Set([
+      'consumer',
+      'energy',
+      'healthcare',
+      'industrials',
+      'small-cap',
+      'software',
+      'sportsbook',
+    ]));
+  });
+
   it('defines the three required personalities in stable seat order', () => {
     expect(AI_PERSONALITIES.map(({ id }) => id)).toEqual([
       'momentum', 'contrarian', 'balanced',
