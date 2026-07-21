@@ -4,6 +4,8 @@ import { render } from 'vitest-browser-react'
 import { App } from '../App'
 import { GAME_ROUTES } from '../routes/registry'
 
+const FANSTOCKS_SAVE_KEY = 'opentrade.fanstocks'
+
 afterEach(() => {
   vi.restoreAllMocks()
   window.localStorage.clear()
@@ -51,7 +53,7 @@ test('renders three complete game cards and opens the how-to dialog', async () =
 
 test('resets one game and announces success without touching other saves', async () => {
   window.location.hash = '#/'
-  window.localStorage.setItem('open-trade:game:fanstocks', 'saved')
+  window.localStorage.setItem(FANSTOCKS_SAVE_KEY, 'saved')
   window.localStorage.setItem('open-trade:game:founder-mode', 'keep')
   const screen = await render(<App />)
 
@@ -63,7 +65,7 @@ test('resets one game and announces success without touching other saves', async
   }).click()
 
   await expect.element(screen.getByText('FanStocks progress reset')).toBeVisible()
-  expect(window.localStorage.getItem('open-trade:game:fanstocks')).toBeNull()
+  expect(window.localStorage.getItem(FANSTOCKS_SAVE_KEY)).toBeNull()
   expect(window.localStorage.getItem('open-trade:game:founder-mode')).toBe(
     'keep',
   )
@@ -156,7 +158,7 @@ test('cancels a pending reset on Escape without allowing its stale load to reset
     return originalLoad()
   })
   window.location.hash = '#/'
-  window.localStorage.setItem('open-trade:game:fanstocks', 'saved')
+  window.localStorage.setItem(FANSTOCKS_SAVE_KEY, 'saved')
   const screen = await render(<App />)
   const resetButton = screen.getByRole('button', {
     name: 'Reset FanStocks progress',
@@ -175,7 +177,7 @@ test('cancels a pending reset on Escape without allowing its stale load to reset
 
   releaseFirstLoad()
   await expect.poll(() => loadCount).toBe(1)
-  expect(window.localStorage.getItem('open-trade:game:fanstocks')).toBe('saved')
+  expect(window.localStorage.getItem(FANSTOCKS_SAVE_KEY)).toBe('saved')
   await expect.poll(() => document.body.textContent).not.toContain(
     'FanStocks progress reset',
   )
@@ -183,7 +185,7 @@ test('cancels a pending reset on Escape without allowing its stale load to reset
   await resetButton.click()
   await screen.getByRole('button', { name: 'Confirm reset FanStocks' }).click()
   await expect.element(screen.getByText('FanStocks progress reset')).toBeVisible()
-  expect(window.localStorage.getItem('open-trade:game:fanstocks')).toBeNull()
+  expect(window.localStorage.getItem(FANSTOCKS_SAVE_KEY)).toBeNull()
   expect(loadCount).toBe(2)
 })
 
@@ -214,7 +216,7 @@ test('invalidates a pending reset when navigation unmounts the hub', async () =>
     }
   })
   window.location.hash = '#/'
-  window.localStorage.setItem('open-trade:game:fanstocks', 'saved')
+  window.localStorage.setItem(FANSTOCKS_SAVE_KEY, 'saved')
   const screen = await render(<App />)
 
   await screen.getByRole('button', {
@@ -234,7 +236,7 @@ test('invalidates a pending reset when navigation unmounts the hub', async () =>
   await Promise.resolve()
   await Promise.resolve()
   expect(resetCalls).toBe(0)
-  expect(window.localStorage.getItem('open-trade:game:fanstocks')).toBe('saved')
+  expect(window.localStorage.getItem(FANSTOCKS_SAVE_KEY)).toBe('saved')
   await expect.poll(() => document.body.textContent).not.toContain(
     'FanStocks progress reset',
   )

@@ -25,7 +25,7 @@ test('skip link preserves the hash route and focuses the current page main', asy
   const screen = await render(<App />)
 
   await expect.element(
-    screen.getByRole('heading', { name: 'FanStocks', level: 1 }),
+    screen.getByRole('heading', { name: 'Fantasy Stock Leagues', level: 1 }),
   ).toBeVisible()
   const hashBeforeSkip = window.location.hash
 
@@ -33,7 +33,7 @@ test('skip link preserves the hash route and focuses the current page main', asy
 
   await expect.poll(() => window.location.hash).toBe(hashBeforeSkip)
   await expect.element(
-    screen.getByRole('heading', { name: 'FanStocks', level: 1 }),
+    screen.getByRole('heading', { name: 'Fantasy Stock Leagues', level: 1 }),
   ).toBeVisible()
   await expect.element(screen.getByRole('main')).toHaveFocus()
 })

@@ -13,13 +13,13 @@ test('loads a game entry from its hash route and can return to the hub', async (
   const screen = await render(<App />)
 
   await expect.element(
-    screen.getByRole('heading', { name: 'FanStocks', level: 1 }),
+    screen.getByRole('heading', { name: 'Fantasy Stock Leagues', level: 1 }),
   ).toBeVisible()
   await expect.element(
-    screen.getByText('Challenge seed guest-42 · ruleset 1'),
+    screen.getByRole('button', { name: 'Start drafting' }),
   ).toBeVisible()
 
-  await screen.getByRole('link', { name: 'Back to all games' }).click()
+  await screen.getByRole('link', { name: 'OpenTrade games' }).click()
   await expect.element(
     screen.getByRole('heading', { name: 'Choose your market', level: 1 }),
   ).toBeVisible()

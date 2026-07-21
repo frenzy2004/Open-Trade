@@ -2,10 +2,12 @@ import { expect, test } from '@playwright/test'
 import type { Locator, Page } from '@playwright/test'
 
 const GAMES = [
-  { path: 'fanstocks', title: 'FanStocks' },
-  { path: 'founder-mode', title: 'Founder Mode' },
-  { path: 'wallstreet-surfers', title: 'Wallstreet Surfers' },
+  { path: 'fanstocks', title: 'FanStocks', heading: 'Fantasy Stock Leagues' },
+  { path: 'founder-mode', title: 'Founder Mode', heading: 'Founder Mode' },
+  { path: 'wallstreet-surfers', title: 'Wallstreet Surfers', heading: 'Wallstreet Surfers' },
 ] as const
+
+const FANSTOCKS_SAVE_KEY = 'opentrade.fanstocks'
 
 const INTERACTIVE_TARGETS = [
   'a[href]:visible',
@@ -36,7 +38,7 @@ async function expectGameReady(
 ) {
   await expect(page).toHaveURL(new RegExp(`#/${game.path}$`))
   await expect(
-    page.getByRole('heading', { name: game.title, level: 1 }),
+    page.getByRole('heading', { name: game.heading, level: 1 }),
   ).toBeVisible()
 }
 
@@ -85,10 +87,10 @@ test('navigates through a lazy hash route and restores hub focus', async ({
   await page.getByRole('link', { name: 'Play FanStocks' }).click()
   await expect(page).toHaveURL(/#\/fanstocks$/)
   await expect(
-    page.getByRole('heading', { name: 'FanStocks', level: 1 }),
+    page.getByRole('heading', { name: 'Fantasy Stock Leagues', level: 1 }),
   ).toBeVisible()
 
-  await page.getByRole('link', { name: 'Back to all games' }).click()
+  await page.getByRole('link', { name: 'OpenTrade games' }).click()
   await expect(
     page.getByRole('heading', { name: 'Choose your market', level: 1 }),
   ).toBeVisible()
@@ -124,10 +126,10 @@ test('persists shared sound and reduced-motion settings', async ({ page }) => {
 })
 
 test('resets one game save and leaves another untouched', async ({ page }) => {
-  await page.evaluate(() => {
-    localStorage.setItem('open-trade:game:fanstocks', 'remove')
+  await page.evaluate((fanStocksSaveKey) => {
+    localStorage.setItem(fanStocksSaveKey, 'remove')
     localStorage.setItem('open-trade:game:founder-mode', 'keep')
-  })
+  }, FANSTOCKS_SAVE_KEY)
 
   await page
     .getByRole('button', { name: 'Reset FanStocks progress' })
@@ -139,8 +141,9 @@ test('resets one game save and leaves another untouched', async ({ page }) => {
   await expect(page.getByText('FanStocks progress reset')).toBeVisible()
   await expect
     .poll(() =>
-      page.evaluate(() =>
-        localStorage.getItem('open-trade:game:fanstocks'),
+      page.evaluate(
+        (fanStocksSaveKey) => localStorage.getItem(fanStocksSaveKey),
+        FANSTOCKS_SAVE_KEY,
       ),
     )
     .toBeNull()
@@ -178,7 +181,7 @@ test('has no horizontal overflow and preserves 44px targets', async ({
     await page.getByRole('link', { name: 'Play FanStocks' }).click()
     await expectGameReady(page, GAMES[0])
     await expectAccessibleViewport(page, viewport.width, 'lazy game route')
-    await page.getByRole('link', { name: 'Back to all games' }).click()
+    await page.getByRole('link', { name: 'OpenTrade games' }).click()
     await expectHubReady(page)
 
     await page
