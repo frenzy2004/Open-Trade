@@ -1,14 +1,17 @@
 /* global caches, self */
 
 const CACHE_PREFIX = 'open-trade-shell-'
-const CACHE_NAME = `${CACHE_PREFIX}v1`
+const CACHE_VERSION = '__OPEN_TRADE_CACHE_VERSION__'
+const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`
 const scopeRoot = new URL('./', self.registration.scope).href
+const INJECTED_PRECACHE_PATHS = /* __OPEN_TRADE_PRECACHE__ */ []
 const PRECACHE_URLS = [
-  scopeRoot,
-  new URL('manifest.webmanifest', scopeRoot).href,
-  new URL('icons/open-trade-192.png', scopeRoot).href,
-  new URL('icons/open-trade-512.png', scopeRoot).href,
-]
+  '',
+  'manifest.webmanifest',
+  'icons/open-trade-192.png',
+  'icons/open-trade-512.png',
+  ...INJECTED_PRECACHE_PATHS,
+].map((path) => new URL(path, scopeRoot).href)
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

@@ -1,3 +1,20 @@
+import arcadeLoopUrl from './audio/shared/arcade-loop.ogg?url'
+import marketFailureUrl from './audio/shared/market-failure.ogg?url'
+import marketSuccessUrl from './audio/shared/market-success.ogg?url'
+import uiConfirmUrl from './audio/shared/ui-confirm.ogg?url'
+import coinPickupUrl from './audio/wallstreet-surfers/coin-pickup.ogg?url'
+import collisionUrl from './audio/wallstreet-surfers/collision.ogg?url'
+import fanStocksDraftRoomUrl from './generated/fanstocks/draft-room.webp?url'
+import founderBoardroomUrl from './generated/founder-mode/boardroom.webp?url'
+import runnerBarrierUrl from './generated/wallstreet-surfers/barrier.png?url'
+import runnerCoinUrl from './generated/wallstreet-surfers/coin.png?url'
+import runnerLongArrowUrl from './generated/wallstreet-surfers/long-arrow.png?url'
+import runnerLoopUrl from './generated/wallstreet-surfers/runner_run_f15_256x256_g4x4_fps16_loop.png?url'
+import runnerAvatarUrl from './generated/wallstreet-surfers/runner-avatar.png?url'
+import runnerStreetUrl from './generated/wallstreet-surfers/runner-street.webp?url'
+import runnerShortArrowUrl from './generated/wallstreet-surfers/short-arrow.png?url'
+import runnerTrainUrl from './generated/wallstreet-surfers/train.png?url'
+
 export type AssetId =
   | 'fs-draft-room'
   | 'fm-boardroom'
@@ -45,13 +62,13 @@ Object.freeze(ASSET_CATALOG_IDS)
 
 function makeAsset(
   id: AssetId,
-  relativeUrl: string,
+  url: string,
   kind: AssetRecord['kind'],
   alt: string,
 ): AssetRecord {
   return Object.freeze({
     id,
-    url: new URL(relativeUrl, import.meta.url).href,
+    url,
     kind,
     alt,
   })
@@ -60,97 +77,97 @@ function makeAsset(
 export const ASSET_CATALOG: Readonly<Record<AssetId, AssetRecord>> = Object.freeze({
   'fs-draft-room': makeAsset(
     'fs-draft-room',
-    './generated/fanstocks/draft-room.webp',
+    fanStocksDraftRoomUrl,
     'image',
     'After-hours fantasy stock draft room',
   ),
   'fm-boardroom': makeAsset(
     'fm-boardroom',
-    './generated/founder-mode/boardroom.webp',
+    founderBoardroomUrl,
     'image',
     'Founder boardroom split between legacy risk and a strategic future',
   ),
   'ws-runner-street': makeAsset(
     'ws-runner-street',
-    './generated/wallstreet-surfers/runner-street.webp',
+    runnerStreetUrl,
     'image',
     'Three-lane financial district running course',
   ),
   'ws-runner-avatar': makeAsset(
     'ws-runner-avatar',
-    './generated/wallstreet-surfers/runner-avatar.png',
+    runnerAvatarUrl,
     'image',
     'Market courier ready to run',
   ),
   'ws-train': makeAsset(
     'ws-train',
-    './generated/wallstreet-surfers/train.png',
+    runnerTrainUrl,
     'image',
     'Market ticker train obstacle',
   ),
   'ws-barrier': makeAsset(
     'ws-barrier',
-    './generated/wallstreet-surfers/barrier.png',
+    runnerBarrierUrl,
     'image',
     'Striped financial district barrier',
   ),
   'ws-long-arrow': makeAsset(
     'ws-long-arrow',
-    './generated/wallstreet-surfers/long-arrow.png',
+    runnerLongArrowUrl,
     'image',
     'Upward market direction arrow',
   ),
   'ws-short-arrow': makeAsset(
     'ws-short-arrow',
-    './generated/wallstreet-surfers/short-arrow.png',
+    runnerShortArrowUrl,
     'image',
     'Downward market direction arrow',
   ),
   'ws-coin': makeAsset(
     'ws-coin',
-    './generated/wallstreet-surfers/coin.png',
+    runnerCoinUrl,
     'image',
     'Embossed market coin',
   ),
   'ws-run-loop': makeAsset(
     'ws-run-loop',
-    './generated/wallstreet-surfers/runner_run_f15_256x256_g4x4_fps16_loop.png',
+    runnerLoopUrl,
     'spritesheet',
     'Animated market courier run cycle',
   ),
   'ui-confirm': makeAsset(
     'ui-confirm',
-    './audio/shared/ui-confirm.ogg',
+    uiConfirmUrl,
     'audio',
     'Tactile confirmation sound',
   ),
   'market-success': makeAsset(
     'market-success',
-    './audio/shared/market-success.ogg',
+    marketSuccessUrl,
     'audio',
     'Positive market result sound',
   ),
   'market-failure': makeAsset(
     'market-failure',
-    './audio/shared/market-failure.ogg',
+    marketFailureUrl,
     'audio',
     'Negative market result sound',
   ),
   'coin-pickup': makeAsset(
     'coin-pickup',
-    './audio/wallstreet-surfers/coin-pickup.ogg',
+    coinPickupUrl,
     'audio',
     'Market coin pickup sound',
   ),
   collision: makeAsset(
     'collision',
-    './audio/wallstreet-surfers/collision.ogg',
+    collisionUrl,
     'audio',
     'Runner collision sound',
   ),
   'arcade-loop': makeAsset(
     'arcade-loop',
-    './audio/shared/arcade-loop.ogg',
+    arcadeLoopUrl,
     'audio',
     'Instrumental finance arcade loop',
   ),
