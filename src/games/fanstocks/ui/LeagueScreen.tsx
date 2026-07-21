@@ -12,6 +12,7 @@ import { OpponentTable } from './OpponentTable'
 import { PortfolioHand } from './PortfolioHand'
 import { PortfolioRace } from './PortfolioRace'
 import { portfolioForDisplay } from './portfolioPresentation'
+import { buildRaceSeries, finalRaceValue } from './racePresentation'
 
 function latestMarket(frames: readonly PriceFrame[]) {
   if (!Array.isArray(frames) || frames.length === 0 || !Object.hasOwn(frames, frames.length - 1)) return null
@@ -49,8 +50,11 @@ export function LeagueScreen({
 }: LeagueScreenProps) {
   const headingId = `fanstocks-league-heading-${useId()}`
   const market = latestMarket(frames)
-  const validPortfolios = PARTICIPANT_ORDER.every((id) => portfolioForDisplay(portfolios, id) !== null)
-  const unavailable = market === null || !validPortfolios
+  const series = buildRaceSeries(portfolios, frames)
+  const unavailable = market === null || series === null
+  const values = series === null ? null : Object.fromEntries(
+    PARTICIPANT_ORDER.map((id) => [id, finalRaceValue(series, id)]),
+  ) as Readonly<Record<(typeof PARTICIPANT_ORDER)[number], number | null>>
   const heading = unavailable ? 'Market unavailable' : market.day
   const status = unavailable
     ? 'Portfolio data unavailable'
@@ -75,6 +79,7 @@ export function LeagueScreen({
       <div className="league-screen__board">
         <OpponentTable
           portfolios={portfolios}
+          values={values}
           disabled={unavailable || pendingTrade !== null || market?.closed === true}
           onSelect={onSelectOpponent}
         />
@@ -93,6 +98,9 @@ export function LeagueScreen({
       </aside>
       <section className="league-screen__player" aria-label="Your portfolio">
         <h2>Your portfolio</h2>
+        <data className="portfolio-value" value={values?.player ?? undefined}>
+          {values?.player === null || values?.player === undefined ? 'Value unavailable' : `$${values.player.toFixed(2)}`}
+        </data>
         <PortfolioHand portfolio={portfolioForDisplay(portfolios, 'player')} label="Your hand" />
       </section>
     </section>

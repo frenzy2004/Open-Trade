@@ -47,13 +47,45 @@ describe('LeagueScreen', () => {
     const table = screen.getByRole('table', {
       name: 'Current portfolio standings',
     })
-    const values = within(table).getAllByText('$50.00')
-    expect(values).toHaveLength(4)
+    expect(within(table).getAllByText('$50.00')).toHaveLength(4)
+    expect(container.querySelectorAll('.portfolio-value')).toHaveLength(4)
+    expect([...container.querySelectorAll('.portfolio-value')].every((value) => value.textContent === '$50.00')).toBe(true)
     expect(chart).toHaveAccessibleName(
       'Portfolio race through Monday; You 50.00 dollars, Momentum 50.00 dollars, Contrarian 50.00 dollars, Balanced 50.00 dollars',
     )
     expect(container.querySelector("polyline[data-participant='player']")).toHaveAttribute('points', '0.00,50.00')
     expect(within(table).getAllByText('Unchanged')).toHaveLength(4)
+  })
+
+  it('places the $50 baseline on the same asymmetric scale as every series', () => {
+    const asymmetric: PriceFrame = {
+      tick: 1,
+      multipliers: Object.freeze(Object.fromEntries(STOCKS.map(({ ticker }) => [
+        ticker,
+        portfolios.player.tickers.includes(ticker)
+          ? 1.12
+          : portfolios.momentum.tickers.includes(ticker)
+            ? 0.96
+            : 1,
+      ]))),
+    }
+    const { container } = render(
+      <LeagueScreen
+        portfolios={portfolios}
+        frames={[frames[0] as PriceFrame, asymmetric]}
+        paused={false}
+        speed={1}
+        pendingTrade={null}
+        {...callbacks()}
+      />,
+    )
+
+    expect(container.querySelector('.portfolio-race__baseline')).toHaveAttribute('y1', '71.00')
+    expect(container.querySelector("polyline[data-participant='player']")).toHaveAttribute('data-final-value', '56.00')
+    expect(container.querySelector("polyline[data-participant='momentum']")).toHaveAttribute('data-final-value', '48.00')
+    expect([...container.querySelectorAll('.portfolio-value')].map((value) => value.textContent)).toEqual([
+      '$48.00', '$50.00', '$50.00', '$56.00',
+    ])
   })
 
   it('uses native pressed controls and delegates exact opponent/speed/pause/share values', () => {
@@ -133,5 +165,27 @@ describe('LeagueScreen', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
     expect(screen.queryByText('$50.00')).not.toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /^Offer .+ a trade$/u }).every((button) => button.hasAttribute('disabled'))).toBe(true)
+  })
+
+  it('rejects array roots and inherited participant fields at the display boundary', () => {
+    const inheritedPlayer = Object.create(portfolios.player) as typeof portfolios.player
+    const inherited = { ...portfolios, player: inheritedPlayer } as PortfolioMap
+    const arrayRoot = Object.assign([], portfolios) as unknown as PortfolioMap
+
+    for (const malformed of [inherited, arrayRoot]) {
+      const { unmount } = render(
+        <LeagueScreen
+          portfolios={malformed}
+          frames={frames}
+          paused={false}
+          speed={1}
+          pendingTrade={null}
+          {...callbacks()}
+        />,
+      )
+      expect(screen.getByRole('heading', { name: 'Market unavailable' })).toBeVisible()
+      expect(screen.queryByText('$50.00')).not.toBeInTheDocument()
+      unmount()
+    }
   })
 })

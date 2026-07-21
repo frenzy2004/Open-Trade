@@ -5,15 +5,18 @@ import type { AiId } from '../content/types'
 import type { TradeOffer } from '../engine/trades'
 import { PARTICIPANT_META } from './participantMeta'
 
+const OFFER_FIELDS: readonly (keyof TradeOffer)[] = Object.freeze([
+  'id', 'direction', 'opponentId', 'playerGives', 'playerReceives', 'createdAtTick',
+])
+
 function validIncomingOffer(value: TradeOffer): TradeOffer | null {
-  if (typeof value !== 'object' || value === null) return null
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
   const candidate = value as Partial<Record<keyof TradeOffer, unknown>>
   if (
+    !OFFER_FIELDS.every((field) => Object.hasOwn(candidate, field)) ||
     typeof candidate.id !== 'string' || candidate.id.trim() === '' ||
     candidate.direction !== 'incoming' ||
-    typeof candidate.opponentId !== 'string' ||
-    !Object.hasOwn(PARTICIPANT_META, candidate.opponentId) ||
-    candidate.opponentId === 'player' ||
+    (candidate.opponentId !== 'momentum' && candidate.opponentId !== 'contrarian' && candidate.opponentId !== 'balanced') ||
     typeof candidate.playerGives !== 'string' ||
     !STOCK_BY_TICKER.has(candidate.playerGives) ||
     typeof candidate.playerReceives !== 'string' ||

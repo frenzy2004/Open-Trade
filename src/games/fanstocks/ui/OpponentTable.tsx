@@ -6,8 +6,9 @@ import { portfolioForDisplay } from './portfolioPresentation'
 
 const OPPONENT_IDS: readonly AiId[] = Object.freeze(['momentum', 'contrarian', 'balanced'])
 
-export function OpponentTable({ portfolios, disabled, onSelect }: {
+export function OpponentTable({ portfolios, values, disabled, onSelect }: {
   readonly portfolios: PortfolioMap
+  readonly values: Readonly<Record<AiId, number | null>> | null
   readonly disabled: boolean
   readonly onSelect: (id: AiId) => void
 }) {
@@ -20,6 +21,9 @@ export function OpponentTable({ portfolios, disabled, onSelect }: {
             <span className="opponent-seat__avatar" aria-hidden="true">{PARTICIPANT_META[id].symbol}</span>
             <h3>{PARTICIPANT_META[id].name}</h3>
             <p>{PARTICIPANT_META[id].strategy}</p>
+            <data className="portfolio-value" value={values?.[id] ?? undefined}>
+              {values?.[id] === null || values?.[id] === undefined ? 'Value unavailable' : `$${values[id].toFixed(2)}`}
+            </data>
             <PortfolioHand portfolio={portfolio} label={`${PARTICIPANT_META[id].name} hand`} />
             <button
               type="button"

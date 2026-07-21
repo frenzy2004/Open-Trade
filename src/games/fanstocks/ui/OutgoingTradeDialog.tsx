@@ -33,11 +33,9 @@ export function OutgoingTradeDialog({
   const radioId = useId()
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION)
   useEffect(() => {
-    if (!open) {
-      // Closing is a complete transaction boundary; stale radio choices must not return.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSelection(EMPTY_SELECTION)
-    }
+    // Open/close and opponent changes each begin a distinct transaction.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelection(EMPTY_SELECTION)
   }, [open, opponentId])
 
   const validOpponent = knownOpponent(opponentId) ? opponentId : null

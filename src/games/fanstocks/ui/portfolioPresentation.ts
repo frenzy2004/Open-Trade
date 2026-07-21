@@ -21,10 +21,11 @@ export function portfolioForDisplay(
   portfolios: PortfolioMap,
   participantId: ParticipantId,
 ): Portfolio | null {
-  if (typeof portfolios !== 'object' || portfolios === null || !Object.hasOwn(portfolios, participantId)) return null
+  if (typeof portfolios !== 'object' || portfolios === null || Array.isArray(portfolios) || !Object.hasOwn(portfolios, participantId)) return null
   const candidate: unknown = (portfolios as unknown as Record<string, unknown>)[participantId]
   if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate)) return null
   const record = candidate as Record<PropertyKey, unknown>
+  if (!Object.hasOwn(record, 'participantId') || !Object.hasOwn(record, 'tickers')) return null
   if (record.participantId !== participantId) return null
   const tickers = exactKnownTickers(record.tickers)
   return tickers === null ? null : { participantId, tickers }

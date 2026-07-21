@@ -83,6 +83,16 @@ describe('IncomingTradeCard', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Trade offer unavailable.')
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
+
+  it('rejects arrays and inherited incoming fields', () => {
+    const inherited = Object.create(incoming) as TradeOffer
+    const arrayOffer = Object.assign([], incoming) as unknown as TradeOffer
+    for (const offer of [inherited, arrayOffer]) {
+      const { unmount } = render(<IncomingTradeCard offer={offer} onAccept={vi.fn()} onPass={vi.fn()} />)
+      expect(screen.getByRole('status')).toHaveTextContent('Trade offer unavailable.')
+      unmount()
+    }
+  })
 })
 
 describe('OutgoingTradeDialog', () => {
@@ -135,6 +145,21 @@ describe('OutgoingTradeDialog', () => {
     expect(within(dialog).queryByRole('radio')).not.toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Send trade offer' })).toBeDisabled()
   })
+
+  it('clears both selections when the open opponent transaction changes', () => {
+    const view = render(
+      <OutgoingTradeDialog open opponentId="balanced" portfolios={portfolios} onClose={vi.fn()} onSubmit={vi.fn()} />,
+    )
+    fireEvent.click(screen.getByLabelText(`Give ${portfolios.player.tickers[0] ?? ''}`))
+    fireEvent.click(screen.getByLabelText(`Receive ${portfolios.balanced.tickers[0] ?? ''}`))
+    expect(screen.getByRole('button', { name: 'Send trade offer' })).toBeEnabled()
+
+    view.rerender(
+      <OutgoingTradeDialog open opponentId="contrarian" portfolios={portfolios} onClose={vi.fn()} onSubmit={vi.fn()} />,
+    )
+    expect(screen.getByRole('button', { name: 'Send trade offer' })).toBeDisabled()
+    expect(screen.queryAllByRole('radio', { checked: true })).toHaveLength(0)
+  })
 })
 
 describe('TradeTransferAnimation', () => {
@@ -161,5 +186,18 @@ describe('TradeTransferAnimation', () => {
     render(<TradeTransferAnimation event={{ ...event, status: 'rejected' }} reducedMotion={false} />)
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(screen.queryByTestId('trade-flight')).not.toBeInTheDocument()
+  })
+
+  it('rejects inherited and incomplete accepted-event shapes', () => {
+    const inherited = Object.create(event) as TradeEvent
+    const wrongDirection = { ...event, direction: 'sideways' } as unknown as TradeEvent
+    const wrongOpponent = { ...event, opponentId: 'stranger' } as unknown as TradeEvent
+    const wrongTick = { ...event, createdAtTick: Number.NaN }
+    for (const malformed of [inherited, wrongDirection, wrongOpponent, wrongTick]) {
+      const { unmount } = render(<TradeTransferAnimation event={malformed} reducedMotion={false} />)
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('trade-flight')).not.toBeInTheDocument()
+      unmount()
+    }
   })
 })

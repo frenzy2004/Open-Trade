@@ -2,14 +2,22 @@ import { useEffect, useState } from 'react'
 import { STOCK_BY_TICKER } from '../content/stocks'
 import type { TradeEvent } from '../engine/trades'
 
+const EVENT_FIELDS: readonly (keyof TradeEvent)[] = Object.freeze([
+  'id', 'direction', 'opponentId', 'playerGives', 'playerReceives', 'createdAtTick', 'status',
+])
+
 function acceptedEvent(value: TradeEvent | null): TradeEvent | null {
   if (
-    typeof value !== 'object' || value === null ||
+    typeof value !== 'object' || value === null || Array.isArray(value) ||
+    !EVENT_FIELDS.every((field) => Object.hasOwn(value, field)) ||
     value.status !== 'accepted' ||
     typeof value.id !== 'string' || value.id === '' ||
+    (value.direction !== 'incoming' && value.direction !== 'outgoing') ||
+    (value.opponentId !== 'momentum' && value.opponentId !== 'contrarian' && value.opponentId !== 'balanced') ||
     typeof value.playerGives !== 'string' || !STOCK_BY_TICKER.has(value.playerGives) ||
     typeof value.playerReceives !== 'string' || !STOCK_BY_TICKER.has(value.playerReceives) ||
-    value.playerGives === value.playerReceives
+    value.playerGives === value.playerReceives ||
+    !Number.isSafeInteger(value.createdAtTick) || value.createdAtTick < 0
   ) return null
   return value
 }
