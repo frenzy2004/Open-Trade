@@ -10,6 +10,10 @@ function formatBillions(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }
 
+function visibleBillions(value: number): string {
+  return `$${value.toFixed(1)}B`
+}
+
 function safeChartValue(value: number): number {
   return Number.isFinite(value) && value > 0 ? value : 0
 }
@@ -51,6 +55,22 @@ export function ValuationChart({
           height={playerHeight}
           rx="5"
         />
+        <text
+          className="founder-chart-value"
+          x="104"
+          y={Math.max(16, 106 - realityHeight)}
+          textAnchor="middle"
+        >
+          {visibleBillions(safeReality)}
+        </text>
+        <text
+          className="founder-chart-value founder-chart-value--player"
+          x="216"
+          y={Math.max(16, 106 - playerHeight)}
+          textAnchor="middle"
+        >
+          {visibleBillions(safePlayer)}
+        </text>
         <text x="104" y="132" textAnchor="middle">
           Reality
         </text>

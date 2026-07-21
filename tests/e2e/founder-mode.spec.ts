@@ -141,7 +141,14 @@ test('plays, persists, replays, and archives the complete Netflix episode', asyn
     ).toBeVisible()
     await expect(page.getByText(`Outcome: ${step.outcome}`)).toBeVisible()
     await expect(page.getByText(step.outcomeExcerpt, { exact: false })).toBeVisible()
-    await expect(page.getByText(step.value)).toBeVisible()
+    await expect(
+      page.getByLabel(`Company value ${step.value.replace('B', ' billion')}`),
+    ).toBeVisible()
+    await expect(page.getByText(step.beforeAfter)).toBeVisible()
+    await expect(page.getByText(step.delta)).toBeVisible()
+    const chart = page.locator('.founder-valuation-chart')
+    await expect(chart.getByText('$25.0B')).toBeVisible()
+    await expect(chart.getByText(step.value)).toBeVisible()
     await expectAccessibleViewport(page, `outcome ${step.decision}`)
     if (step.decision < 5) {
       await page
@@ -172,6 +179,7 @@ test('plays, persists, replays, and archives the complete Netflix episode', asyn
       name: 'Netflix Q1 2011 Letter to Shareholders',
     }),
   ).toBeVisible()
+  await expectAccessibleViewport(page, 'decision recap dialog')
   await recap.getByRole('button', { name: 'Close Decision 1 recap' }).click()
   await expectAccessibleViewport(page, 'ending')
 
@@ -223,7 +231,7 @@ test('preserves malformed save data until recovery is explicitly accepted', asyn
     .not.toBe('{broken')
 })
 
-test('stays usable at 320px and disables boardroom parallax for reduced motion', async ({
+test('stays usable through 1440px and at 200% zoom with reduced motion', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1024, height: 720 })
@@ -233,12 +241,36 @@ test('stays usable at 320px and disables boardroom parallax for reduced motion',
     'background-attachment',
     /scroll/,
   )
-  await page.setViewportSize({ width: 320, height: 640 })
-  await expectAccessibleViewport(page, '320px landing')
+  for (const viewport of [
+    { width: 320, height: 640 },
+    { width: 768, height: 900 },
+    { width: 1440, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport)
+    await openFreshFounderMode(page)
+    await expectAccessibleViewport(page, `${viewport.width}px landing`)
+    await page.getByRole('button', { name: 'Play episode' }).click()
+    await page.getByRole('button', { name: 'Take the chair' }).click()
+    await expectAccessibleViewport(page, `${viewport.width}px decision`)
+    await expect(
+      page.getByRole('button', { name: 'Unbundle and reprice immediately' }),
+    ).toBeVisible()
+  }
+
+  await page.setViewportSize({ width: 768, height: 900 })
+  await openFreshFounderMode(page)
   await page.getByRole('button', { name: 'Play episode' }).click()
   await page.getByRole('button', { name: 'Take the chair' }).click()
-  await expectAccessibleViewport(page, '320px decision')
-  await expect(
-    page.getByRole('button', { name: 'Unbundle and reprice immediately' }),
-  ).toBeVisible()
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send('Emulation.setPageScaleFactor', { pageScaleFactor: 2 })
+  expect(await page.evaluate(() => window.visualViewport?.scale)).toBe(2)
+  await expectAccessibleViewport(page, '768px decision at 200% zoom')
+  const choices = page.locator('.founder-choice-card')
+  await expect(choices).toHaveCount(3)
+  for (const choice of await choices.all()) {
+    await choice.scrollIntoViewIfNeeded()
+    await expect(choice).toBeVisible()
+  }
+  await cdp.send('Emulation.setPageScaleFactor', { pageScaleFactor: 1 })
+  await cdp.detach()
 })

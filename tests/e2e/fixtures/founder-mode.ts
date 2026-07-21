@@ -7,6 +7,8 @@ export const NETFLIX_BRAINROT_PATH = [
     outcome: 'did not work',
     outcomeExcerpt: 'customer timeline catches fire',
     value: '$18.4B',
+    beforeAfter: '$20.0B → $18.4B',
+    delta: '−$1.6B',
   },
   {
     decision: 2,
@@ -16,6 +18,8 @@ export const NETFLIX_BRAINROT_PATH = [
     outcome: 'did not work',
     outcomeExcerpt: 'Qwikster side quest',
     value: '$15.5B',
+    beforeAfter: '$18.4B → $15.5B',
+    delta: '−$2.9B',
   },
   {
     decision: 3,
@@ -25,6 +29,8 @@ export const NETFLIX_BRAINROT_PATH = [
     outcome: 'worked',
     outcomeExcerpt: 'trust does not respawn',
     value: '$17.4B',
+    beforeAfter: '$15.5B → $17.4B',
+    delta: '+$1.9B',
   },
   {
     decision: 4,
@@ -34,6 +40,8 @@ export const NETFLIX_BRAINROT_PATH = [
     outcome: 'worked',
     outcomeExcerpt: 'global distribution XP',
     value: '$20.9B',
+    beforeAfter: '$17.4B → $20.9B',
+    delta: '+$3.5B',
   },
   {
     decision: 5,
@@ -43,6 +51,8 @@ export const NETFLIX_BRAINROT_PATH = [
     outcome: 'worked',
     outcomeExcerpt: 'original-content aura',
     value: '$27.6B',
+    beforeAfter: '$20.9B → $27.6B',
+    delta: '+$6.7B',
   },
 ] as const
 

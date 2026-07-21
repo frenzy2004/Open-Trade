@@ -27,6 +27,15 @@ export function FounderOutcome({
   }
 
   const isLast = run.decisionIndex === episode.decisions.length - 1
+  const delta =
+    Math.round((historyItem.valueAfterBn - historyItem.valueBeforeBn) * 10) /
+    10
+  const signedDelta =
+    delta > 0
+      ? `+$${delta.toFixed(1)}B`
+      : delta < 0
+        ? `−$${Math.abs(delta).toFixed(1)}B`
+        : '±$0.0B'
   return (
     <section className="founder-screen founder-outcome" aria-labelledby="outcome-title">
       <div className="founder-kicker">The market responds</div>
@@ -39,6 +48,15 @@ export function FounderOutcome({
             <p>Outcome: {choice.worked ? 'worked' : 'did not work'}</p>
           </div>
           <p className="founder-deck">{choice.outcome[run.style]}</p>
+          <p className="founder-value-change">
+            <span>
+              ${historyItem.valueBeforeBn.toFixed(1)}B → $
+              {historyItem.valueAfterBn.toFixed(1)}B
+            </span>
+            <strong data-tone={delta >= 0 ? 'gain' : 'loss'}>
+              {signedDelta}
+            </strong>
+          </p>
           <p className="founder-value-result" aria-label={`Company value $${run.currentValueBn.toFixed(1)} billion`}>
             ${run.currentValueBn.toFixed(1)}B
           </p>

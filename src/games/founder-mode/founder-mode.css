@@ -233,6 +233,30 @@
   letter-spacing: -0.04em;
 }
 
+.founder-value-change {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.8rem;
+  margin: 0.9rem 0 0;
+  font-weight: 800;
+}
+
+.founder-value-change strong {
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.4rem;
+}
+
+.founder-value-change strong[data-tone='gain'] {
+  background: rgb(73 172 108 / 18%);
+  color: #9fe3b7;
+}
+
+.founder-value-change strong[data-tone='loss'] {
+  background: rgb(210 90 75 / 18%);
+  color: #ffb7ad;
+}
+
 .founder-valuation-chart {
   margin: 0;
   padding: 0.75rem;
@@ -245,6 +269,15 @@
   fill: var(--founder-ivory);
   font-size: 0.7rem;
   font-weight: 800;
+}
+
+.founder-valuation-chart .founder-chart-value {
+  fill: #f4dfaa;
+  font-size: 0.78rem;
+}
+
+.founder-valuation-chart .founder-chart-value--player {
+  fill: #fff4cf;
 }
 
 .founder-chart-axis {
@@ -393,6 +426,15 @@
 
 .founder-recap-dialog li + li {
   margin-top: 0.5rem;
+}
+
+.founder-source-link {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  padding-block: 0.45rem;
+  font-weight: 750;
+  text-underline-offset: 0.2em;
 }
 
 .founder-streak {

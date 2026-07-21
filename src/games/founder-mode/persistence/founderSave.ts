@@ -16,9 +16,10 @@ import {
 
 export const FOUNDER_SAVE_KEY = 'open-trade:game:founder-mode'
 
-export interface FounderSaveV1 {
-  readonly schemaVersion: 1
+export interface FounderSave {
+  readonly schemaVersion: 2
   readonly selectedEpisodeId: string
+  readonly episodeRulesetVersion: number
   readonly style: WritingStyle
   readonly streakDays: number
   readonly lastCompletedDate: string | null
@@ -205,10 +206,10 @@ function decodeRun(
 }
 
 function decodeSave(value: unknown):
-  | { readonly ok: true; readonly value: FounderSaveV1 }
+  | { readonly ok: true; readonly value: FounderSave }
   | { readonly ok: false; readonly reason: string } {
   const record = asPlainRecord(value)
-  if (!record || readOwn(record, 'schemaVersion') !== 1) {
+  if (!record || readOwn(record, 'schemaVersion') !== 2) {
     return { ok: false, reason: 'Founder save fields are invalid' }
   }
 
@@ -219,6 +220,13 @@ function decodeSave(value: unknown):
   const episode = founderEpisodeById(selectedEpisodeId)
   if (!episode) {
     return { ok: false, reason: 'Founder save selected episode is invalid' }
+  }
+  const episodeRulesetVersion = readOwn(record, 'episodeRulesetVersion')
+  if (episodeRulesetVersion !== episode.rulesetVersion) {
+    return {
+      ok: false,
+      reason: 'Founder save episode ruleset is incompatible',
+    }
   }
 
   const style = readOwn(record, 'style')
@@ -253,8 +261,9 @@ function decodeSave(value: unknown):
   return {
     ok: true,
     value: Object.freeze({
-      schemaVersion: 1,
+      schemaVersion: 2,
       selectedEpisodeId: episode.id,
+      episodeRulesetVersion: episode.rulesetVersion,
       style,
       streakDays: streakDays as number,
       lastCompletedDate,
@@ -263,10 +272,28 @@ function decodeSave(value: unknown):
   }
 }
 
-export const founderSaveCodec: GameSaveCodec<FounderSaveV1> = Object.freeze({
+function migrateFounderV1(value: unknown): unknown {
+  const record = asPlainRecord(value)
+  if (!record || readOwn(record, 'schemaVersion') !== 1) return value
+  const migrated = Object.create(null) as UnknownRecord
+  for (const key of Object.keys(record)) {
+    migrated[key] = readOwn(record, key)
+  }
+  // Schema 1 shipped only with episode ruleset 1. Preserve that historical
+  // contract so a future ruleset bump recovers instead of silently upgrading.
+  migrated.schemaVersion = 2
+  migrated.episodeRulesetVersion = 1
+  return migrated
+}
+
+const FOUNDER_MIGRATIONS = Object.freeze({
+  1: migrateFounderV1,
+})
+
+export const founderSaveCodec: GameSaveCodec<FounderSave> = Object.freeze({
   key: FOUNDER_SAVE_KEY,
-  version: 1,
-  encode(value: FounderSaveV1) {
+  version: 2,
+  encode(value: FounderSave) {
     const decoded = decodeSave(value)
     if (!decoded.ok) throw new TypeError(decoded.reason)
     return decoded.value
@@ -274,10 +301,13 @@ export const founderSaveCodec: GameSaveCodec<FounderSaveV1> = Object.freeze({
   decode: decodeSave,
 })
 
-export function createDefaultFounderSave(): FounderSaveV1 {
+export function createDefaultFounderSave(): FounderSave {
+  const episode = founderEpisodeById('netflix-2011')
+  if (!episode) throw new Error('Founder Mode default episode is unavailable')
   return Object.freeze({
-    schemaVersion: 1,
-    selectedEpisodeId: 'netflix-2011',
+    schemaVersion: 2,
+    selectedEpisodeId: episode.id,
+    episodeRulesetVersion: episode.rulesetVersion,
     style: 'classic',
     streakDays: 0,
     lastCompletedDate: null,
@@ -287,14 +317,17 @@ export function createDefaultFounderSave(): FounderSaveV1 {
 
 export function createFounderStore(
   options: GameStoreOptions = {},
-): GameStore<FounderSaveV1> {
-  return createGameStore(founderSaveCodec, options)
+): GameStore<FounderSave> {
+  return createGameStore(founderSaveCodec, {
+    ...options,
+    migrations: FOUNDER_MIGRATIONS,
+  })
 }
 
 export const founderStore = createFounderStore()
 
 export function progressBadgeForFounderSave(
-  save: Pick<FounderSaveV1, 'streakDays'>,
+  save: Pick<FounderSave, 'streakDays'>,
 ): GameProgressBadge {
   const days = save.streakDays
   return Object.freeze({

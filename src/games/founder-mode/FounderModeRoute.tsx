@@ -20,7 +20,7 @@ import {
   founderStore,
   nextStreak,
   progressBadgeForFounderSave,
-  type FounderSaveV1,
+  type FounderSave,
 } from './persistence/founderSave'
 import { EpisodeArchive } from './ui/EpisodeArchive'
 import { FounderDecision } from './ui/FounderDecision'
@@ -37,7 +37,7 @@ const founderModeStyle = Object.freeze({
 }) as CSSProperties
 
 type InitialRouteState =
-  | { readonly status: 'ready'; readonly save: FounderSaveV1 }
+  | { readonly status: 'ready'; readonly save: FounderSave }
   | {
       readonly status: 'recovery-required'
       readonly reason: string
@@ -84,7 +84,7 @@ export function FounderModeRoute() {
     return () => window.clearTimeout(noticeTimer)
   }, [])
 
-  const persist = useCallback((save: FounderSaveV1) => {
+  const persist = useCallback((save: FounderSave) => {
     const result = founderStore.save(save)
     if (!result.ok) {
       setNotice('Your change is active, but browser storage could not save it.')
@@ -154,7 +154,16 @@ export function FounderModeRoute() {
     persist(Object.freeze({ ...save, style, activeRun: null }))
   }
   const selectEpisode = (episodeId: string) => {
-    persist(Object.freeze({ ...save, selectedEpisodeId: episodeId, activeRun: null }))
+    const selectedEpisode = founderEpisodeById(episodeId)
+    if (!selectedEpisode) return
+    persist(
+      Object.freeze({
+        ...save,
+        selectedEpisodeId: selectedEpisode.id,
+        episodeRulesetVersion: selectedEpisode.rulesetVersion,
+        activeRun: null,
+      }),
+    )
     setView('landing')
   }
   const play = () => {

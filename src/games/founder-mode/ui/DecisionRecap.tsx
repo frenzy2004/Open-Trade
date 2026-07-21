@@ -82,7 +82,12 @@ export function DecisionRecap({
             <ul>
               {sources.map((source) => (
                 <li key={source.id}>
-                  <a href={source.url} target="_blank" rel="noreferrer">
+                  <a
+                    className="founder-source-link"
+                    href={source.url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     {source.title}
                   </a>
                   <span> — {source.publisher}</span>

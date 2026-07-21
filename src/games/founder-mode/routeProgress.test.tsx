@@ -25,8 +25,9 @@ describe('Founder route progress derivation', () => {
     expect(setGameProgress('founder-mode', cachedZero)).toEqual({ ok: true })
     expect(
       founderStore.save({
-        schemaVersion: 1,
+        schemaVersion: 2,
         selectedEpisodeId: 'netflix-2011',
+        episodeRulesetVersion: 1,
         style: 'classic',
         streakDays: 7,
         lastCompletedDate: '2026-07-21',
@@ -64,8 +65,9 @@ describe('Founder route progress derivation', () => {
     expect(setGameProgress('founder-mode', cachedZero)).toEqual({ ok: true })
     expect(
       founderStore.save({
-        schemaVersion: 1,
+        schemaVersion: 2,
         selectedEpisodeId: 'netflix-2011',
+        episodeRulesetVersion: 1,
         style: 'classic',
         streakDays: 4,
         lastCompletedDate: '2026-07-21',
