@@ -14,6 +14,7 @@ import { OutgoingTradeDialog } from './ui/OutgoingTradeDialog'
 import { ResultsScreen } from './ui/ResultsScreen'
 import { TradeTransferAnimation } from './ui/TradeTransferAnimation'
 import { TutorialDialog } from './ui/TutorialDialog'
+import './fanstocks.css'
 
 const PHASES: readonly FanStocksPhase[] = Object.freeze([
   'intro',
