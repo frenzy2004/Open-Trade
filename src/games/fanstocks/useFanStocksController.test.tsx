@@ -92,7 +92,7 @@ function RouteObserver({
       action,
       value: `${location.pathname}${location.search}`,
     });
-  }, [action, location.pathname, location.search, records]);
+  }, [action, location.key, location.pathname, location.search, records]);
   return null;
 }
 
@@ -134,6 +134,12 @@ function navigateExternally(control: RouteControl, to: string): void {
   const navigate = control.read();
   if (navigate === null) throw new Error('Route control is not mounted');
   act(() => navigate(to));
+}
+
+function navigateHistory(control: RouteControl, delta: number): void {
+  const navigate = control.read();
+  if (navigate === null) throw new Error('Route control is not mounted');
+  act(() => navigate(delta));
 }
 
 function latestTimerIndex(
@@ -595,6 +601,39 @@ describe('useFanStocksController routing and public API', () => {
     ]);
   });
 
+  it('canonicalizes a bare same-seed reload once and keeps history traversal stable', () => {
+    const control = createRouteControl();
+    const records: RouteRecord[] = [];
+    const { result } = renderHook(() => useFanStocksController(), {
+      wrapper: makeWrapper('/fanstocks?seed=seed-one&rules=1', {
+        routeControl: control,
+        routeRecords: records,
+      }),
+    });
+    act(() => result.current.startLeague());
+
+    navigateExternally(control, '/fanstocks');
+
+    expect(result.current.state).toMatchObject({
+      seed: 'seed-one',
+      phase: 'tutorial',
+    });
+    expect(records.slice(-2)).toEqual([
+      { action: 'PUSH', value: '/fanstocks' },
+      { action: 'REPLACE', value: '/fanstocks?seed=seed-one&rules=1' },
+    ]);
+    expect(records.filter(({ action }) => action === 'REPLACE')).toHaveLength(1);
+
+    navigateHistory(control, -1);
+    navigateHistory(control, 1);
+    expect(result.current.state.phase).toBe('tutorial');
+    expect(records.filter(({ action }) => action === 'REPLACE')).toHaveLength(1);
+    expect(records.slice(-2)).toEqual([
+      { action: 'POP', value: '/fanstocks?seed=seed-one&rules=1' },
+      { action: 'POP', value: '/fanstocks?seed=seed-one&rules=1' },
+    ]);
+  });
+
   it('acknowledges internal rematch and new-league replaces without reinitializing', () => {
     saveState(tickState(createMarketState('result-seed'), 60));
     const records: RouteRecord[] = [];
@@ -728,6 +767,27 @@ describe('useFanStocksController timing and visibility', () => {
     expect(result.current.state.phase).toBe('market');
   });
 
+  it('restarts the full AI delay after a same-value bare-route reinitialization', () => {
+    const control = createRouteControl();
+    const records: RouteRecord[] = [];
+    const { result } = renderHook(() => useFanStocksController(), {
+      wrapper: makeWrapper('/fanstocks?seed=ai-reinit&rules=1', {
+        routeControl: control,
+        routeRecords: records,
+      }),
+    });
+    reachAiDrafting(result.current);
+    act(() => vi.advanceTimersByTime(400));
+
+    navigateExternally(control, '/fanstocks');
+
+    expect(result.current.state.phase).toBe('ai-drafting');
+    act(() => vi.advanceTimersByTime(649));
+    expect(result.current.state.phase).toBe('ai-drafting');
+    act(() => vi.advanceTimersByTime(1));
+    expect(result.current.state.phase).toBe('market');
+  });
+
   it('completes AI drafting at 0ms with reduced motion', () => {
     const { result } = renderHook(() => useFanStocksController(), {
       wrapper: makeWrapper('/fanstocks?seed=hook-seed&rules=1', {
@@ -763,6 +823,28 @@ describe('useFanStocksController timing and visibility', () => {
     reachMarket(result);
     act(() => vi.advanceTimersByTime(4_000));
     act(() => result.current.setSpeed(4));
+    act(() => vi.advanceTimersByTime(1_249));
+    expect(result.current.state.priceHistory.at(-1)?.tick).toBe(0);
+    act(() => vi.advanceTimersByTime(1));
+    expect(result.current.state.priceHistory.at(-1)?.tick).toBe(1);
+  });
+
+  it('restarts the full 4x tick delay after a same-value bare-route reinitialization', () => {
+    const control = createRouteControl();
+    const records: RouteRecord[] = [];
+    const { result } = renderHook(() => useFanStocksController(), {
+      wrapper: makeWrapper('/fanstocks?seed=market-reinit&rules=1', {
+        routeControl: control,
+        routeRecords: records,
+      }),
+    });
+    reachMarket(result);
+    act(() => result.current.setSpeed(4));
+    act(() => vi.advanceTimersByTime(800));
+
+    navigateExternally(control, '/fanstocks');
+
+    expect(result.current.state.priceHistory.at(-1)?.tick).toBe(0);
     act(() => vi.advanceTimersByTime(1_249));
     expect(result.current.state.priceHistory.at(-1)?.tick).toBe(0);
     act(() => vi.advanceTimersByTime(1));

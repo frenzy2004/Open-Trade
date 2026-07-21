@@ -80,13 +80,23 @@ type ControllerAction = FanStocksAction | {
   readonly state: FanStocksState;
 };
 
+interface ControllerReducerState {
+  readonly state: FanStocksState;
+  readonly reinitializationGeneration: number;
+}
+
 function controllerReducer(
-  state: FanStocksState,
+  current: ControllerReducerState,
   action: ControllerAction,
-): FanStocksState {
-  return action.type === 'CONTROLLER_REINITIALIZE'
-    ? action.state
-    : fanStocksReducer(state, action);
+): ControllerReducerState {
+  if (action.type === 'CONTROLLER_REINITIALIZE') {
+    return {
+      state: action.state,
+      reinitializationGeneration: current.reinitializationGeneration + 1,
+    };
+  }
+  const state = fanStocksReducer(current.state, action);
+  return state === current.state ? current : { ...current, state };
 }
 
 function challengeIntent(search: string): boolean {
@@ -186,7 +196,11 @@ export function useFanStocksController(): FanStocksController {
   const location = useLocation();
   const navigate = useNavigate();
   const [initial] = useState(() => loadInitialState(location.search));
-  const [state, dispatch] = useReducer(controllerReducer, initial.state);
+  const [controllerState, dispatch] = useReducer(controllerReducer, {
+    state: initial.state,
+    reinitializationGeneration: 0,
+  });
+  const { state, reinitializationGeneration } = controllerState;
   const [saveProblem, setSaveProblem] = useState(initial.saveProblem);
   const { settings } = useSettings();
   const { addToast } = useToasts();
@@ -286,7 +300,13 @@ export function useFanStocksController(): FanStocksController {
         { replace: true },
       );
     }
-  }, [location.pathname, location.search, navigate, state.seed]);
+  }, [
+    location.pathname,
+    location.search,
+    navigate,
+    reinitializationGeneration,
+    state.seed,
+  ]);
 
   useEffect(() => {
     if (state.phase !== 'ai-drafting') return;
@@ -295,7 +315,7 @@ export function useFanStocksController(): FanStocksController {
       settings.reducedMotion ? 0 : 650,
     );
     return () => window.clearTimeout(timeout);
-  }, [settings.reducedMotion, state.phase]);
+  }, [reinitializationGeneration, settings.reducedMotion, state.phase]);
 
   useEffect(() => {
     if (
@@ -315,6 +335,7 @@ export function useFanStocksController(): FanStocksController {
     state.phase,
     state.priceHistory.length,
     state.speed,
+    reinitializationGeneration,
   ]);
 
   useEffect(() => {
