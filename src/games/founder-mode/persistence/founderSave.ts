@@ -303,3 +303,15 @@ export function progressBadgeForFounderSave(
     tone: days > 0 ? 'positive' : 'neutral',
   })
 }
+
+export function nextStreak(
+  previousDate: string | null,
+  previous: number,
+  today: string,
+): number {
+  const safePrevious = Number.isSafeInteger(previous) && previous >= 0 ? previous : 0
+  if (previousDate === today) return safePrevious
+  if (!previousDate) return 1
+  const days = (Date.parse(today) - Date.parse(previousDate)) / 86_400_000
+  return days === 1 ? safePrevious + 1 : 1
+}

@@ -260,6 +260,141 @@
   fill: var(--founder-gold);
 }
 
+.founder-ending h1 {
+  font-size: clamp(2.4rem, 7vw, 5rem);
+}
+
+.founder-tier {
+  margin: 1rem 0 0;
+  font-size: 1.1rem;
+}
+
+.founder-tier strong {
+  color: #f7d784;
+}
+
+.founder-ending-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.8fr);
+  gap: 1rem;
+  align-items: stretch;
+  margin: 1.25rem 0;
+}
+
+.founder-final-values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.founder-final-values > div {
+  display: grid;
+  align-content: center;
+  padding: 1rem;
+  border: 1px solid rgb(247 241 227 / 16%);
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 5%);
+}
+
+.founder-final-values span {
+  color: rgb(247 241 227 / 66%);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.founder-final-values strong {
+  color: #f7d784;
+  font-size: clamp(1.75rem, 4vw, 3rem);
+}
+
+.founder-style-mix,
+.founder-recaps {
+  margin: 1.5rem 0;
+}
+
+.founder-style-mix h2,
+.founder-recaps h2 {
+  margin-bottom: 0.3rem;
+}
+
+.founder-style-mix > p {
+  margin-top: 0;
+  color: rgb(247 241 227 / 70%);
+}
+
+.founder-style-mix dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.founder-style-stat {
+  padding: 0.8rem;
+  border-bottom: 0.2rem solid var(--founder-gold);
+  background: rgb(255 255 255 / 5%);
+}
+
+.founder-style-stat dt {
+  font-weight: 800;
+}
+
+.founder-style-stat dd {
+  margin: 0.15rem 0 0;
+  color: #f7d784;
+  font-size: 1.5rem;
+  font-weight: 900;
+}
+
+.founder-recap-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.founder-recap-button.ui-button {
+  display: grid;
+  min-width: 0;
+  min-height: 7rem;
+  justify-items: start;
+  align-content: space-between;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  text-align: left;
+  white-space: normal;
+}
+
+.founder-recap-button span,
+.founder-recap-button small {
+  opacity: 0.68;
+}
+
+.founder-recap-dialog dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.founder-recap-dialog dl > div {
+  padding: 0.75rem;
+  border-radius: 0.6rem;
+  background: rgb(0 0 0 / 6%);
+}
+
+.founder-recap-dialog dt {
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.founder-recap-dialog dd {
+  margin: 0.25rem 0 0;
+}
+
+.founder-recap-dialog li + li {
+  margin-top: 0.5rem;
+}
+
 .founder-streak {
   display: inline-flex;
   margin: 1rem 0;
@@ -352,7 +487,8 @@
   }
 
   .founder-run-header,
-  .founder-outcome-grid {
+  .founder-outcome-grid,
+  .founder-ending-grid {
     display: block;
   }
 
@@ -361,6 +497,23 @@
   }
 
   .founder-choice-list {
+    grid-template-columns: 1fr;
+  }
+
+  .founder-final-values,
+  .founder-style-mix dl {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .founder-recap-list {
+    grid-template-columns: 1fr;
+  }
+
+  .founder-recap-button.ui-button {
+    min-height: 5.5rem;
+  }
+
+  .founder-recap-dialog dl {
     grid-template-columns: 1fr;
   }
 
