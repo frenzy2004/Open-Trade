@@ -1,66 +1,143 @@
+import { useId } from 'react'
 import { ProgressBar } from '../../../shared/ui/ProgressBar'
 import { STOCK_BY_TICKER } from '../content/stocks'
 import type { StockCard, Ticker } from '../content/types'
 import type { DraftState } from '../engine/draftReducer'
 import { currentDraftLabel } from '../engine/draftReducer'
+import { FANSTOCKS_RULES } from '../engine/rules'
 import { StockCardButton } from './StockCardButton'
 import { StockDetailDialog } from './StockDetailDialog'
 
-const DRAFT_SLOT_COUNT = 3
+const DRAFT_SLOT_COUNT = FANSTOCKS_RULES.cardsPerPortfolio
+const CANDIDATE_COUNT = FANSTOCKS_RULES.candidatesPerRound
 
 function isRecord(value: unknown): value is Record<PropertyKey, unknown> {
   return typeof value === 'object' && value !== null
 }
 
-function isTicker(value: unknown): value is Ticker {
-  return typeof value === 'string'
-}
-
-function isStockCard(value: StockCard | undefined): value is StockCard {
-  return value !== undefined
-}
-
-function safeDraftLabel(
-  draft: DraftState,
-  runtimeDraft: Record<PropertyKey, unknown>,
-): string {
-  if (runtimeDraft.status === 'complete') {
-    return currentDraftLabel(draft)
+function canonicalTickers(value: unknown, limit: number): readonly Ticker[] {
+  if (!Array.isArray(value)) {
+    return []
   }
 
-  if (
-    runtimeDraft.status === 'selecting' &&
-    typeof runtimeDraft.roundIndex === 'number' &&
-    Number.isSafeInteger(runtimeDraft.roundIndex)
-  ) {
-    return currentDraftLabel(draft)
+  const tickers: Ticker[] = []
+  const seen = new Set<Ticker>()
+  for (const candidate of value) {
+    if (
+      typeof candidate !== 'string' ||
+      !STOCK_BY_TICKER.has(candidate) ||
+      seen.has(candidate)
+    ) {
+      continue
+    }
+
+    seen.add(candidate)
+    tickers.push(candidate)
+    if (tickers.length === limit) {
+      break
+    }
   }
 
-  return 'Draft unavailable'
+  return tickers
 }
 
-function currentCandidateStocks(
+function selectingRoundIndex(
   runtimeDraft: Record<PropertyKey, unknown>,
-): readonly StockCard[] {
+): number | null {
   if (
     runtimeDraft.status !== 'selecting' ||
     typeof runtimeDraft.roundIndex !== 'number' ||
     !Number.isSafeInteger(runtimeDraft.roundIndex) ||
     runtimeDraft.roundIndex < 0 ||
-    !Array.isArray(runtimeDraft.groups)
+    runtimeDraft.roundIndex >= FANSTOCKS_RULES.draftRounds
   ) {
+    return null
+  }
+
+  return runtimeDraft.roundIndex
+}
+
+function currentCandidateStocks(
+  runtimeDraft: Record<PropertyKey, unknown>,
+): readonly StockCard[] {
+  const roundIndex = selectingRoundIndex(runtimeDraft)
+  if (roundIndex === null) {
     return []
   }
 
-  const group: unknown = runtimeDraft.groups[runtimeDraft.roundIndex]
-  if (!Array.isArray(group)) {
+  const tickers = candidateTickersForRound(runtimeDraft, roundIndex)
+  const stocks: StockCard[] = []
+  for (const ticker of tickers) {
+    const stock = STOCK_BY_TICKER.get(ticker)
+    if (stock !== undefined) {
+      stocks.push(stock)
+    }
+  }
+  return stocks.length === CANDIDATE_COUNT ? stocks : []
+}
+
+function candidateTickersForRound(
+  runtimeDraft: Record<PropertyKey, unknown>,
+  roundIndex: number,
+): readonly Ticker[] {
+  if (!Array.isArray(runtimeDraft.groups)) {
     return []
   }
 
-  return group
-    .filter(isTicker)
-    .map((ticker) => STOCK_BY_TICKER.get(ticker))
-    .filter(isStockCard)
+  const tickers = canonicalTickers(
+    runtimeDraft.groups[roundIndex],
+    CANDIDATE_COUNT,
+  )
+  if (tickers.length !== CANDIDATE_COUNT) {
+    return []
+  }
+
+  return tickers
+}
+
+function completedDraftIsConsistent(
+  runtimeDraft: Record<PropertyKey, unknown>,
+  picks: readonly Ticker[],
+): boolean {
+  if (
+    runtimeDraft.status !== 'complete' ||
+    runtimeDraft.roundIndex !== FANSTOCKS_RULES.draftRounds ||
+    picks.length !== DRAFT_SLOT_COUNT
+  ) {
+    return false
+  }
+
+  for (let roundIndex = 0; roundIndex < FANSTOCKS_RULES.draftRounds; roundIndex += 1) {
+    const pick = picks[roundIndex]
+    if (
+      pick === undefined ||
+      !candidateTickersForRound(runtimeDraft, roundIndex).includes(pick)
+    ) {
+      return false
+    }
+  }
+
+  return true
+}
+
+function safeDraftLabel(
+  draft: DraftState,
+  runtimeDraft: Record<PropertyKey, unknown>,
+  picks: readonly Ticker[],
+  candidates: readonly StockCard[],
+): string {
+  if (
+    selectingRoundIndex(runtimeDraft) !== null &&
+    candidates.length === CANDIDATE_COUNT
+  ) {
+    return currentDraftLabel(draft)
+  }
+
+  if (completedDraftIsConsistent(runtimeDraft, picks)) {
+    return currentDraftLabel(draft)
+  }
+
+  return 'Draft unavailable'
 }
 
 export interface DraftScreenProps {
@@ -78,26 +155,30 @@ export function DraftScreen({
   onCloseDetail,
   onDraft,
 }: DraftScreenProps) {
+  const headingId = `fanstocks-draft-heading-${useId()}`
   const runtimeDraft: Record<PropertyKey, unknown> = isRecord(draft)
     ? draft
     : {}
-  const picks = Array.isArray(runtimeDraft.picks)
-    ? runtimeDraft.picks.filter(isTicker).slice(0, DRAFT_SLOT_COUNT)
-    : []
+  const picks = canonicalTickers(runtimeDraft.picks, DRAFT_SLOT_COUNT)
   const draftedCount = picks.length
   const candidates = currentCandidateStocks(runtimeDraft)
-  const inspectedTicker = isTicker(runtimeDraft.inspectedTicker)
+  const inspectedTicker =
+    typeof runtimeDraft.inspectedTicker === 'string' &&
+    candidates.some(
+      (candidate) => candidate.ticker === runtimeDraft.inspectedTicker,
+    )
     ? runtimeDraft.inspectedTicker
     : null
   const detail =
     inspectedTicker === null
       ? null
       : (STOCK_BY_TICKER.get(inspectedTicker) ?? null)
+  const label = safeDraftLabel(draft, runtimeDraft, picks, candidates)
 
   return (
-    <main className="draft-screen">
+    <section className="draft-screen" aria-labelledby={headingId}>
       <header className="draft-screen__header">
-        <h1>{safeDraftLabel(draft, runtimeDraft)}</h1>
+        <h1 id={headingId}>{label}</h1>
         <ProgressBar
           value={draftedCount}
           max={DRAFT_SLOT_COUNT}
@@ -115,9 +196,9 @@ export function DraftScreen({
         {candidates.length === 0 ? (
           <p>No stock cards are available for this draft round.</p>
         ) : (
-          candidates.map((stock, index) => (
+          candidates.map((stock) => (
             <StockCardButton
-              key={`${stock.ticker}-${index}`}
+              key={stock.ticker}
               stock={stock}
               onRead={onOpenDetail}
             />
@@ -130,6 +211,6 @@ export function DraftScreen({
         onClose={onCloseDetail}
         onDraft={onDraft}
       />
-    </main>
+    </section>
   )
 }

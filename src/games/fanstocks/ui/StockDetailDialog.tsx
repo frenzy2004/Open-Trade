@@ -33,8 +33,8 @@ export function StockDetailDialog({
           <p className="stock-detail__ticker">{stock.ticker}</p>
           <h3>{stock.thesis}</h3>
           <ul>
-            {stock.evidence.map((bullet) => (
-              <li key={bullet}>{bullet}</li>
+            {stock.evidence.map((bullet, index) => (
+              <li key={`${index}-${bullet}`}>{bullet}</li>
             ))}
           </ul>
           <div className="stock-detail__nav">

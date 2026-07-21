@@ -6,27 +6,85 @@ import {
   within,
 } from '@testing-library/react'
 import type { ReactElement } from 'react'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 import { STOCKS } from '../content/stocks'
 import type { StockCard } from '../content/types'
 import type { DraftState } from '../engine/draftReducer'
 import { DraftScreen } from './DraftScreen'
 import { FanStocksIntro } from './FanStocksIntro'
 import { StockArtwork } from './StockArtwork'
+import { StockDetailDialog } from './StockDetailDialog'
 import { TutorialDialog } from './TutorialDialog'
+
+const originalShowModalDescriptor = Object.getOwnPropertyDescriptor(
+  HTMLDialogElement.prototype,
+  'showModal',
+)
+const originalCloseDescriptor = Object.getOwnPropertyDescriptor(
+  HTMLDialogElement.prototype,
+  'close',
+)
 
 beforeAll(() => {
   if (HTMLDialogElement.prototype.showModal === undefined) {
-    HTMLDialogElement.prototype.showModal = function showModal() {
-      this.setAttribute('open', '')
-    }
+    Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+      configurable: true,
+      writable: true,
+      value(this: HTMLDialogElement) {
+        this.setAttribute('open', '')
+      },
+    })
   }
 
   if (HTMLDialogElement.prototype.close === undefined) {
-    HTMLDialogElement.prototype.close = function close() {
-      this.removeAttribute('open')
-    }
+    Object.defineProperty(HTMLDialogElement.prototype, 'close', {
+      configurable: true,
+      writable: true,
+      value(this: HTMLDialogElement) {
+        this.removeAttribute('open')
+      },
+    })
   }
+})
+
+afterAll(() => {
+  if (originalShowModalDescriptor === undefined) {
+    Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal')
+  } else {
+    Object.defineProperty(
+      HTMLDialogElement.prototype,
+      'showModal',
+      originalShowModalDescriptor,
+    )
+  }
+
+  if (originalCloseDescriptor === undefined) {
+    Reflect.deleteProperty(HTMLDialogElement.prototype, 'close')
+  } else {
+    Object.defineProperty(
+      HTMLDialogElement.prototype,
+      'close',
+      originalCloseDescriptor,
+    )
+  }
+
+  expect(
+    Object.getOwnPropertyDescriptor(
+      HTMLDialogElement.prototype,
+      'showModal',
+    ),
+  ).toEqual(originalShowModalDescriptor)
+  expect(
+    Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'close'),
+  ).toEqual(originalCloseDescriptor)
 })
 
 afterEach(() => {
@@ -68,6 +126,24 @@ function expectRenderDoesNotThrow(element: ReactElement) {
 }
 
 describe('FanStocksIntro', () => {
+  it('composes under the app main as a single labelled region', () => {
+    const { container } = render(
+      <main>
+        <FanStocksIntro onStart={vi.fn()} />
+      </main>,
+    )
+
+    expect(container.querySelectorAll('main')).toHaveLength(1)
+    const region = screen.getByRole('region', {
+      name: 'Fantasy Stock Leagues',
+    })
+    const heading = within(region).getByRole('heading', {
+      name: 'Fantasy Stock Leagues',
+    })
+    expect(heading.id).not.toBe('')
+    expect(region).toHaveAttribute('aria-labelledby', heading.id)
+  })
+
   it('states the complete game premise and investment disclaimer', () => {
     render(<FanStocksIntro onStart={vi.fn()} />)
 
@@ -129,6 +205,24 @@ describe('TutorialDialog', () => {
 })
 
 describe('DraftScreen', () => {
+  it('composes under the app main as a single labelled region', () => {
+    const { container } = render(
+      <main>
+        <DraftScreen draft={selectingDraft} {...callbacks()} />
+      </main>,
+    )
+
+    expect(container.querySelectorAll('main')).toHaveLength(1)
+    const region = screen.getByRole('region', {
+      name: 'Round 1 of 3 · Pick 1 stock',
+    })
+    const heading = within(region).getByRole('heading', {
+      name: 'Round 1 of 3 · Pick 1 stock',
+    })
+    expect(heading.id).not.toBe('')
+    expect(region).toHaveAttribute('aria-labelledby', heading.id)
+  })
+
   it('uses the reducer label, progress state, and exactly the current round candidates', () => {
     const draft: DraftState = {
       ...selectingDraft,
@@ -168,6 +262,53 @@ describe('DraftScreen', () => {
     expect(slots[2]).toHaveTextContent('Empty slot 3')
   })
 
+  it('normalizes picks to three canonical unique known tickers', () => {
+    const malformedPicks = [
+      '',
+      'XLE',
+      'XLE',
+      'UNKNOWN',
+      'DKNG',
+      'HUBS',
+      'AMZN',
+    ]
+    renderDraft({ ...selectingDraft, picks: malformedPicks })
+
+    const progress = screen.getByRole('progressbar', {
+      name: '3 of 3 stocks drafted',
+    })
+    expect(progress).toHaveAttribute('aria-valuenow', '3')
+    const hand = screen.getByRole('list', { name: 'Your drafted stocks' })
+    expect(
+      within(hand).getAllByRole('listitem').map((slot) => slot.textContent),
+    ).toEqual(['XLE', 'DKNG', 'HUBS'])
+  })
+
+  it('normalizes candidates to the first three canonical unique tickers', () => {
+    const draft = {
+      ...selectingDraft,
+      groups: [
+        ['XLE', 'XLE', 'UNKNOWN', 'DKNG', 'HUBS', 'AMZN'],
+        ...groups.slice(1),
+      ],
+    } satisfies DraftState
+    renderDraft(draft)
+
+    const candidateButtons = screen.getAllByRole('button', {
+      name: /^Read /u,
+    })
+    expect(candidateButtons).toHaveLength(3)
+    expect(candidateButtons.map((button) => button.getAttribute('aria-label')))
+      .toEqual([
+        'Read XLE, Energy Select Sector SPDR Fund',
+        'Read DKNG, DraftKings',
+        'Read HUBS, HubSpot',
+      ])
+    expect(
+      screen.queryByRole('button', { name: 'Read AMZN, Amazon' }),
+    ).not.toBeInTheDocument()
+  })
+
   it('opens a stock through its semantic native card button', () => {
     const onOpenDetail = vi.fn()
     renderDraft(selectingDraft, { onOpenDetail })
@@ -197,6 +338,48 @@ describe('DraftScreen', () => {
       within(dialog).getByText(STOCKS[0]?.thesis ?? ''),
     ).toBeVisible()
     expect(within(dialog).getAllByRole('listitem')).toHaveLength(3)
+  })
+
+  it('renders repeated evidence without duplicate-key errors', () => {
+    const baseStock = STOCKS[0]
+    expect(baseStock).toBeDefined()
+    if (baseStock === undefined) {
+      return
+    }
+
+    const repeatedEvidenceStock: StockCard = {
+      ...baseStock,
+      evidence: ['Repeated evidence', 'Repeated evidence', 'Repeated evidence'],
+    }
+    const consoleErrors: unknown[][] = []
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation((...args: unknown[]) => {
+        consoleErrors.push(args)
+      })
+
+    try {
+      render(
+        <StockDetailDialog
+          stock={repeatedEvidenceStock}
+          onMove={vi.fn()}
+          onClose={vi.fn()}
+          onDraft={vi.fn()}
+        />,
+      )
+
+      const dialog = screen.getByRole('dialog', {
+        name: repeatedEvidenceStock.company,
+      })
+      expect(within(dialog).getAllByRole('listitem')).toHaveLength(3)
+      expect(
+        consoleErrors.filter((call) =>
+          call.some((part) => String(part).includes('same key')),
+        ),
+      ).toHaveLength(0)
+    } finally {
+      consoleError.mockRestore()
+    }
   })
 
   it('delegates previous, next, draft, Back, and shared close actions exactly', () => {
@@ -237,32 +420,115 @@ describe('DraftScreen', () => {
     ).toBeVisible()
   })
 
-  it.each([
-    {
-      name: 'a completed draft',
-      draft: {
-        ...selectingDraft,
-        roundIndex: 3,
-        picks: ['XLE', 'AMZN', 'LOW'],
-        status: 'complete' as const,
-      },
-      heading: 'Draft complete',
-    },
-    {
-      name: 'an out-of-range round',
-      draft: { ...selectingDraft, roundIndex: 99 },
-      heading: 'Round 100 of 3 · Pick 1 stock',
-    },
-    {
-      name: 'a missing current group',
-      draft: { ...selectingDraft, groups: [] },
-      heading: 'Round 1 of 3 · Pick 1 stock',
-    },
-  ])('hides candidate cards without crashing for $name', ({ draft, heading }) => {
-    expectRenderDoesNotThrow(<DraftScreen draft={draft} {...callbacks()} />)
-    expect(screen.getByRole('heading', { name: heading })).toBeVisible()
+  it('shows Draft complete only for a consistent completed draft', () => {
+    const draft: DraftState = {
+      ...selectingDraft,
+      roundIndex: 3,
+      picks: ['XLE', 'AMZN', 'LOW'],
+      status: 'complete',
+    }
+    renderDraft(draft)
+
+    expect(
+      screen.getByRole('heading', { name: 'Draft complete' }),
+    ).toBeVisible()
     expect(
       screen.queryByRole('button', { name: /^Read /u }),
+    ).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['negative', -1],
+    ['past the last round', 3],
+    ['far past the last round', 99],
+    ['fractional', 0.5],
+    ['NaN', Number.NaN],
+    ['infinite', Number.POSITIVE_INFINITY],
+  ])('treats a %s selecting round as unavailable', (_name, roundIndex) => {
+    const draft = { ...selectingDraft, roundIndex }
+    expectRenderDoesNotThrow(<DraftScreen draft={draft} {...callbacks()} />)
+
+    expect(
+      screen.getByRole('heading', { name: 'Draft unavailable' }),
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: /^Read /u }),
+    ).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['missing', []],
+    ['short', [['XLE', 'DKNG'], ...groups.slice(1)]],
+    ['unknown-heavy', [['XLE', 'UNKNOWN', 'DKNG'], ...groups.slice(1)]],
+  ])('treats a %s current candidate group as unavailable', (_name, rawGroups) => {
+    const draft = {
+      ...selectingDraft,
+      groups: rawGroups,
+    } as unknown as DraftState
+    expectRenderDoesNotThrow(<DraftScreen draft={draft} {...callbacks()} />)
+
+    expect(
+      screen.getByRole('heading', { name: 'Draft unavailable' }),
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: /^Read /u }),
+    ).not.toBeInTheDocument()
+  })
+
+  it.each([
+    {
+      name: 'the wrong terminal round',
+      roundIndex: 2,
+      picks: ['XLE', 'AMZN', 'LOW'],
+    },
+    {
+      name: 'too few canonical picks',
+      roundIndex: 3,
+      picks: ['XLE', 'UNKNOWN'],
+    },
+  ])('does not claim completion with $name', ({ roundIndex, picks }) => {
+    const draft: DraftState = {
+      ...selectingDraft,
+      roundIndex,
+      picks,
+      status: 'complete',
+    }
+    renderDraft(draft)
+
+    expect(
+      screen.getByRole('heading', { name: 'Draft unavailable' }),
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('heading', { name: 'Draft complete' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it.each([
+    {
+      name: 'missing dealt groups',
+      completedGroups: [],
+      picks: ['XLE', 'AMZN', 'LOW'],
+    },
+    {
+      name: 'a pick that was not offered in its round',
+      completedGroups: groups,
+      picks: ['AMZN', 'XLE', 'LOW'],
+    },
+  ])('does not claim completion with $name', ({ completedGroups, picks }) => {
+    const draft: DraftState = {
+      ...selectingDraft,
+      groups: completedGroups,
+      roundIndex: 3,
+      picks,
+      status: 'complete',
+    }
+    renderDraft(draft)
+
+    expect(
+      screen.getByRole('heading', { name: 'Draft unavailable' }),
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('heading', { name: 'Draft complete' }),
     ).not.toBeInTheDocument()
   })
 
@@ -275,8 +541,11 @@ describe('DraftScreen', () => {
 
     expectRenderDoesNotThrow(<DraftScreen draft={draft} {...callbacks()} />)
     expect(
-      screen.getAllByRole('button', { name: /^Read /u }),
-    ).toHaveLength(2)
+      screen.getByRole('heading', { name: 'Draft unavailable' }),
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: /^Read /u }),
+    ).not.toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
@@ -295,6 +564,9 @@ describe('DraftScreen', () => {
     expect(
       screen.getByRole('progressbar', { name: '0 of 3 stocks drafted' }),
     ).toHaveAttribute('aria-valuenow', '0')
+    expect(
+      screen.getByRole('heading', { name: 'Draft unavailable' }),
+    ).toBeVisible()
     expect(
       screen.queryByRole('button', { name: /^Read /u }),
     ).not.toBeInTheDocument()
