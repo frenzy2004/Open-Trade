@@ -44,25 +44,32 @@ export function AudioProvider({
 
   useEffect(() => {
     let active = true
+    let unlocking = false
+    const removeGestureListeners = () => {
+      document.removeEventListener('pointerdown', unlockFromGesture, true)
+      document.removeEventListener('keydown', unlockFromGesture, true)
+    }
     const unlockFromGesture = () => {
+      if (unlocking) return
+      unlocking = true
       void manager.unlock().then((unlocked) => {
-        if (active && unlocked && !settings.muted) {
+        unlocking = false
+        if (!active || !unlocked) return
+        removeGestureListeners()
+        if (!settings.muted) {
           void manager.loop(backgroundLoop)
         }
       })
     }
     document.addEventListener('pointerdown', unlockFromGesture, {
       capture: true,
-      once: true,
     })
     document.addEventListener('keydown', unlockFromGesture, {
       capture: true,
-      once: true,
     })
     return () => {
       active = false
-      document.removeEventListener('pointerdown', unlockFromGesture, true)
-      document.removeEventListener('keydown', unlockFromGesture, true)
+      removeGestureListeners()
     }
   }, [backgroundLoop, manager, settings.muted])
 
@@ -72,6 +79,7 @@ export function AudioProvider({
       else void manager.resume()
     }
     document.addEventListener('visibilitychange', handleVisibility)
+    handleVisibility()
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [manager])
 

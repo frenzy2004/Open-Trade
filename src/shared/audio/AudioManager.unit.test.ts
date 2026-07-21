@@ -138,6 +138,21 @@ describe('AudioManager', () => {
     expect(secondPlay).toHaveBeenCalledTimes(2)
   })
 
+  it('drops new sounds while suspended and accepts them after resume', async () => {
+    const playable = makeAudio()
+    const factory = vi.fn<AudioFactory>(() => playable)
+    const manager = new AudioManager(factory)
+
+    manager.suspend()
+    await expect(manager.play('/audio/hidden.ogg')).resolves.toBe(false)
+    await expect(manager.loop('/audio/hidden-loop.ogg')).resolves.toBe(false)
+    expect(factory).not.toHaveBeenCalled()
+
+    await manager.resume()
+    await expect(manager.play('/audio/visible.ogg')).resolves.toBe(true)
+    expect(factory).toHaveBeenCalledOnce()
+  })
+
   it('disposes all audio and refuses later playback', async () => {
     const playable = makeAudio()
     const factory = vi.fn<AudioFactory>(() => playable)
