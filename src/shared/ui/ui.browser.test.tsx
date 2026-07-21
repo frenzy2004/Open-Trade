@@ -28,6 +28,31 @@ function DialogHarness() {
   )
 }
 
+function FocusTrapDialogHarness() {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>Open focus trap</Button>
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Focus trap"
+        actions={
+          <>
+            <Button disabled>Disabled action</Button>
+            <Button>Last action</Button>
+          </>
+        }
+      >
+        <Button>First action</Button>
+        <Button hidden>Hidden action</Button>
+        <Button tabIndex={-1}>Programmatic action</Button>
+      </Dialog>
+    </>
+  )
+}
+
 function ToastHarness() {
   const { addToast } = useToasts()
 
@@ -73,6 +98,29 @@ test('dialog closes on Escape and returns focus to its trigger', async () => {
   await userEvent.keyboard('{Escape}')
   expect(document.querySelector('dialog')?.open).toBe(false)
   await expect.element(trigger).toHaveFocus()
+})
+
+test('dialog traps forward and reverse focus among visible enabled controls', async () => {
+  const screen = await render(<FocusTrapDialogHarness />)
+  await screen.getByRole('button', { name: 'Open focus trap' }).click()
+
+  const dialog = screen.getByRole('dialog', { name: 'Focus trap' })
+  const close = screen.getByRole('button', { name: 'Close Focus trap' })
+  const first = screen.getByRole('button', { name: 'First action' })
+  const last = screen.getByRole('button', { name: 'Last action' })
+  await expect.element(close).toHaveFocus()
+
+  await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
+  await expect.element(last).toHaveFocus()
+  expect(dialog.element().contains(document.activeElement)).toBe(true)
+
+  await userEvent.keyboard('{Tab}')
+  await expect.element(close).toHaveFocus()
+  await userEvent.keyboard('{Tab}')
+  await expect.element(first).toHaveFocus()
+  await userEvent.keyboard('{Tab}')
+  await expect.element(last).toHaveFocus()
+  expect(dialog.element().contains(document.activeElement)).toBe(true)
 })
 
 test('same-title dialogs reference their own headings and descriptions', async () => {
