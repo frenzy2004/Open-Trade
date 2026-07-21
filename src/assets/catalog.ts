@@ -179,19 +179,3 @@ export function asset(id: AssetId): AssetRecord {
   }
   return ASSET_CATALOG[id]
 }
-import arcadeLoopUrl from './audio/shared/arcade-loop.ogg?url'
-import marketFailureUrl from './audio/shared/market-failure.ogg?url'
-import marketSuccessUrl from './audio/shared/market-success.ogg?url'
-import uiConfirmUrl from './audio/shared/ui-confirm.ogg?url'
-import coinPickupUrl from './audio/wallstreet-surfers/coin-pickup.ogg?url'
-import collisionUrl from './audio/wallstreet-surfers/collision.ogg?url'
-import fanStocksDraftRoomUrl from './generated/fanstocks/draft-room.webp?url'
-import founderBoardroomUrl from './generated/founder-mode/boardroom.webp?url'
-import runnerBarrierUrl from './generated/wallstreet-surfers/barrier.png?url'
-import runnerCoinUrl from './generated/wallstreet-surfers/coin.png?url'
-import runnerLongArrowUrl from './generated/wallstreet-surfers/long-arrow.png?url'
-import runnerLoopUrl from './generated/wallstreet-surfers/runner_run_f15_256x256_g4x4_fps16_loop.png?url'
-import runnerAvatarUrl from './generated/wallstreet-surfers/runner-avatar.png?url'
-import runnerStreetUrl from './generated/wallstreet-surfers/runner-street.webp?url'
-import runnerShortArrowUrl from './generated/wallstreet-surfers/short-arrow.png?url'
-import runnerTrainUrl from './generated/wallstreet-surfers/train.png?url'
