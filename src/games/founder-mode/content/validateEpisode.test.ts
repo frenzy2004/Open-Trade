@@ -25,6 +25,20 @@ function sourceAt(episode: FounderEpisode, index: number): FounderSource {
   return source
 }
 
+function arrayWithInheritedSlots<T>(values: readonly T[]): T[] {
+  const prototype = Object.create(Array.prototype) as T[]
+  values.forEach((value, index) => {
+    Object.defineProperty(prototype, index, {
+      configurable: true,
+      enumerable: true,
+      value,
+    })
+  })
+  const sparse = new Array<T>(values.length)
+  Object.setPrototypeOf(sparse, prototype)
+  return sparse
+}
+
 function createValidEpisode(): FounderEpisode {
   return {
     id: 'sample',
@@ -228,5 +242,64 @@ describe('validateEpisode', () => {
       '<missing episode id>/decisions[0] must be an object',
       '<missing episode id>/decisions[1] must be an object',
     ])
+  })
+
+  it('rejects semantic fields inherited from object prototypes', () => {
+    const valid = createValidEpisode()
+    const inheritedEpisode = Object.create(valid) as FounderEpisode
+    expect(validateEpisode(inheritedEpisode)).toContain(
+      '<missing episode id> id must be non-empty',
+    )
+
+    const inheritedSource = createValidEpisode()
+    inheritedSource.sources = [Object.create(sourceAt(valid, 0)) as FounderSource]
+    expect(validateEpisode(inheritedSource)).toContain(
+      'sample/<missing source id> source id must be non-empty',
+    )
+
+    const inheritedDecision = createValidEpisode()
+    inheritedDecision.decisions[0] = Object.create(
+      decisionAt(valid, 0),
+    ) as FounderDecision
+    expect(validateEpisode(inheritedDecision)).toContain(
+      'sample/decisions[0] decision id must be non-empty',
+    )
+
+    const inheritedChoice = createValidEpisode()
+    decisionAt(inheritedChoice, 0).choices[0] = Object.create(
+      choiceAt(decisionAt(valid, 0), 0),
+    ) as FounderChoice
+    expect(validateEpisode(inheritedChoice)).toContain(
+      'sample/d1/choices[0] choice id must be non-empty',
+    )
+  })
+
+  it('rejects sparse arrays populated only through inherited numeric slots', () => {
+    const inheritedSources = createValidEpisode()
+    inheritedSources.sources = arrayWithInheritedSlots(inheritedSources.sources)
+    expect(validateEpisode(inheritedSources)).toContain(
+      'sample/sources[0] must be an object',
+    )
+
+    const inheritedDecisions = createValidEpisode()
+    inheritedDecisions.decisions = arrayWithInheritedSlots(
+      inheritedDecisions.decisions,
+    )
+    expect(validateEpisode(inheritedDecisions)).toContain(
+      'sample/decisions[0] must be an object',
+    )
+
+    const inheritedChoices = createValidEpisode()
+    const firstDecision = decisionAt(inheritedChoices, 0)
+    firstDecision.choices = arrayWithInheritedSlots(firstDecision.choices)
+    expect(validateEpisode(inheritedChoices)).toContain(
+      'sample/d1/choices[0] must be an object',
+    )
+
+    const inheritedSourceIds = createValidEpisode()
+    decisionAt(inheritedSourceIds, 0).sourceIds = arrayWithInheritedSlots(['s1'])
+    expect(validateEpisode(inheritedSourceIds)).toContain(
+      'sample/d1 sourceIds[0] must be non-empty',
+    )
   })
 })
