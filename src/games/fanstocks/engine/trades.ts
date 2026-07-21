@@ -1,5 +1,6 @@
 import type { SeededRng } from '../../../shared/rng/seededRng';
 import { AI_PERSONALITIES } from '../content/personalities';
+import { STOCKS } from '../content/stocks';
 import type { AiId, AiPersonality, StockCard, Ticker } from '../content/types';
 import { validateStocks } from '../content/validateStocks';
 import { scoreCardForPersonality } from './aiDraft';
@@ -28,7 +29,10 @@ const TRADE_STATUSES = new Set<TradeEvent['status']>([
   'passed',
   'rejected',
 ]);
+const CANONICAL_TICKERS = Object.freeze(STOCKS.map(({ ticker }) => ticker));
+const CANONICAL_TICKER_SET = new Set<Ticker>(CANONICAL_TICKERS);
 const INVALID_PORTFOLIOS_REASON = `Portfolios must contain exactly ${FANSTOCKS_RULES.cardsPerPortfolio} unique tickers each with no duplicates across participants`;
+const INVALID_CARD_COVERAGE_REASON = `Card registry must contain all ${CANONICAL_TICKERS.length} canonical FanStocks cards exactly once`;
 
 function validateOfferShape(offer: TradeOffer): TradeValidation {
   const candidate = (
@@ -86,12 +90,26 @@ function hasValidPortfolioStructure(portfolios: PortfolioMap): boolean {
   const allTickers = PARTICIPANT_ORDER.flatMap((participantId) => (
     (record[participantId] as Portfolio).tickers
   ));
-  return new Set(allTickers).size === allTickers.length;
+  return hasExactCanonicalTickerCoverage(allTickers);
+}
+
+function hasExactCanonicalTickerCoverage(tickers: readonly unknown[]): boolean {
+  return tickers.length === CANONICAL_TICKERS.length
+    && new Set(tickers).size === CANONICAL_TICKER_SET.size
+    && tickers.every((ticker) => (
+      typeof ticker === 'string' && CANONICAL_TICKER_SET.has(ticker)
+    ));
 }
 
 function assertValidCards(cards: readonly StockCard[]): void {
   if (!Array.isArray(cards) || cards.length === 0 || validateStocks(cards).length > 0) {
     throw new RangeError('Card registry must contain valid unique cards');
+  }
+}
+
+function assertCompleteCanonicalCardRegistry(cards: readonly StockCard[]): void {
+  if (!hasExactCanonicalTickerCoverage(cards.map(({ ticker }) => ticker))) {
+    throw new RangeError(INVALID_CARD_COVERAGE_REASON);
   }
 }
 
@@ -211,6 +229,7 @@ export function createIncomingTrade(
     ...portfolios[opponentId].tickers,
   ];
   for (const ticker of tradeableTickers) getCard(cardByTicker, ticker);
+  assertCompleteCanonicalCardRegistry(cards);
   if (!frameHasFinitePrices(frame, tradeableTickers)) return null;
 
   const current = portfolios[opponentId].tickers.map((ticker) => (

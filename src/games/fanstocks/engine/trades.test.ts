@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createSeededRng, type SeededRng } from '../../../shared/rng/seededRng';
 import { AI_PERSONALITIES } from '../content/personalities';
 import { STOCKS } from '../content/stocks';
-import type { AiPersonality, StockCard } from '../content/types';
+import type { AiId, AiPersonality, StockCard } from '../content/types';
 import { completeAiDrafts } from './aiDraft';
 import { createInitialPriceFrame, type PriceFrame } from './priceEngine';
 import type { PortfolioMap } from './types';
@@ -39,6 +39,18 @@ function ownedTicker(participantId: keyof PortfolioMap, index: number): string {
 function presentOffer(offer: TradeOffer | null): TradeOffer {
   if (offer === null) throw new Error('Expected a trade offer fixture');
   return offer;
+}
+
+function withUnknownRosterTicker(participantId: AiId): PortfolioMap {
+  return {
+    ...portfolios,
+    [participantId]: {
+      ...portfolios[participantId],
+      tickers: portfolios[participantId].tickers.map((ticker, index) => (
+        index === 0 ? `ZZZ${participantId[0]}`.toUpperCase() : ticker
+      )),
+    },
+  };
 }
 
 function outgoing(
@@ -170,6 +182,63 @@ describe('FanStocks trade offers', () => {
       10,
       createSeededRng('missing-card'),
     )).toThrow(`Card registry is missing ${missingTicker}`);
+  });
+
+  it.each(['contrarian', 'balanced'] as const)(
+    'rejects an unknown canonical ticker on the uninvolved %s roster',
+    (participantId) => {
+      const invalidPortfolios = withUnknownRosterTicker(participantId);
+      const offer = outgoing('momentum');
+
+      expect(validateTrade(invalidPortfolios, offer)).toEqual({
+        ok: false,
+        reason: 'Portfolios must contain exactly 3 unique tickers each with no duplicates across participants',
+      });
+    },
+  );
+
+  it.each(['contrarian', 'balanced'] as const)(
+    'does not create an incoming offer with an unknown ticker on uninvolved %s',
+    (participantId) => {
+      const invalidPortfolios = withUnknownRosterTicker(participantId);
+
+      expect(() => createIncomingTrade(
+        invalidPortfolios,
+        'momentum',
+        STOCKS,
+        frame,
+        10,
+        createSeededRng(`unknown-${participantId}`),
+      )).toThrow(
+        'Portfolios must contain exactly 3 unique tickers each with no duplicates across participants',
+      );
+    },
+  );
+
+  it('rejects incomplete and non-canonical registries even for unrelated cards', () => {
+    const involvedTickers = new Set([
+      ...portfolios.player.tickers,
+      ...portfolios.momentum.tickers,
+    ]);
+    const unrelatedCard = STOCKS.find(({ ticker }) => !involvedTickers.has(ticker));
+    if (unrelatedCard === undefined) throw new Error('Missing unrelated card fixture');
+    const incompleteCards = STOCKS.filter(({ ticker }) => ticker !== unrelatedCard.ticker);
+    const nonCanonicalCards = STOCKS.map((card) => (
+      card.ticker === unrelatedCard.ticker
+        ? { ...card, ticker: 'ZZZZ', company: 'Unknown Company', artworkKey: 'zzzz' }
+        : card
+    ));
+
+    for (const cards of [incompleteCards, nonCanonicalCards]) {
+      expect(() => createIncomingTrade(
+        portfolios,
+        'momentum',
+        cards,
+        frame,
+        10,
+        createSeededRng('invalid-unrelated-registry'),
+      )).toThrow('Card registry must contain all 12 canonical FanStocks cards exactly once');
+    }
   });
 
   it('validates malformed offers and rosters without throwing', () => {
