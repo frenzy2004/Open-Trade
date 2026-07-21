@@ -77,6 +77,7 @@ export type FanStocksAction =
 const EMPTY_PRICE_HISTORY: readonly PriceFrame[] = Object.freeze([]);
 const EMPTY_TRADE_LOG: readonly TradeEvent[] = Object.freeze([]);
 const MARKET_SPEEDS: readonly MarketSpeed[] = Object.freeze([1, 2, 4]);
+const CHALLENGE_SEED_PATTERN = /^[a-z0-9_-]{1,64}$/i;
 
 function isMarketSpeed(value: unknown): value is MarketSpeed {
   return typeof value === 'number'
@@ -91,8 +92,8 @@ function createDraft(seed: string): DraftState {
 }
 
 export function createFanStocksState(seed: string): FanStocksState {
-  if (typeof seed !== 'string' || seed.trim().length === 0) {
-    throw new Error('FanStocks seed must be non-empty');
+  if (typeof seed !== 'string' || !CHALLENGE_SEED_PATTERN.test(seed)) {
+    throw new Error('FanStocks seed must match challenge seed format');
   }
 
   return Object.freeze({
@@ -260,7 +261,13 @@ function handleMarketTick(state: FanStocksState): FanStocksState {
 
 function createRematch(state: FanStocksState): FanStocksState {
   const rematchIndex = state.rematchIndex + 1;
-  const next = createFanStocksState(`${state.seed}:rematch:${rematchIndex}`);
+  const derivedSeed = createSeededRng(state.seed)
+    .fork(`rematch:${rematchIndex}`)
+    .seed
+    .toString(36);
+  const next = createFanStocksState(
+    `rematch-${rematchIndex.toString(36)}-${derivedSeed}`,
+  );
   return Object.freeze({
     ...next,
     rematchIndex,
@@ -273,6 +280,8 @@ export function fanStocksReducer(
   state: FanStocksState,
   action: FanStocksAction,
 ): FanStocksState {
+  if (typeof action !== 'object' || action === null) return state;
+
   switch (action.type) {
     case 'NEW_LEAGUE':
       return createFanStocksState(action.seed);
@@ -291,10 +300,14 @@ export function fanStocksReducer(
         : state;
 
     case 'OPEN_DETAIL':
-    case 'MOVE_DETAIL':
     case 'CLOSE_DETAIL':
     case 'DRAFT':
       return applyDraftAction(state, action);
+
+    case 'MOVE_DETAIL':
+      return action.direction === -1 || action.direction === 1
+        ? applyDraftAction(state, action)
+        : state;
 
     case 'AI_DRAFTS_READY':
       return state.phase === 'ai-drafting' ? completeDraft(state) : state;

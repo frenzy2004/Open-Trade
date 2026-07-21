@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { formatChallenge } from '../../../shared/routing/challenge';
 import { AI_PERSONALITIES } from '../content/personalities';
 import type { AiId, Ticker } from '../content/types';
 import { PARTICIPANT_ORDER, TOTAL_MARKET_TICKS } from './rules';
@@ -22,8 +23,7 @@ function enterDraft(seed = 'flow'): FanStocksState {
   return fanStocksReducer(tutorial, { type: 'DISMISS_TUTORIAL' });
 }
 
-function finishPlayerDraft(seed = 'flow'): FanStocksState {
-  let state = enterDraft(seed);
+function finishDraft(state: FanStocksState): FanStocksState {
   for (let round = 0; round < 3; round += 1) {
     const group = state.draft.groups[round];
     const ticker = group?.[0];
@@ -31,6 +31,10 @@ function finishPlayerDraft(seed = 'flow'): FanStocksState {
     state = fanStocksReducer(state, { type: 'DRAFT', ticker });
   }
   return state;
+}
+
+function finishPlayerDraft(seed = 'flow'): FanStocksState {
+  return finishDraft(enterDraft(seed));
 }
 
 function enterMarket(seed = 'flow'): FanStocksState {
@@ -88,12 +92,33 @@ function findOutgoingDecision(
 }
 
 describe('fanStocksReducer', () => {
-  it('validates that seeds are nonempty strings', () => {
-    expect(() => createFanStocksState('')).toThrow('FanStocks seed must be non-empty');
-    expect(() => createFanStocksState('   ')).toThrow('FanStocks seed must be non-empty');
-    expect(() => createFanStocksState(7 as unknown as string)).toThrow(
-      'FanStocks seed must be non-empty',
-    );
+  it('accepts only seeds supported by the foundation challenge formatter', () => {
+    for (const seed of ['league_1', 'LEAGUE-2', 'a', 'x'.repeat(64)]) {
+      const state = createFanStocksState(seed);
+      expect(formatChallenge({ seed: state.seed, rulesetVersion: 1 })).toContain(
+        `seed=${seed}`,
+      );
+    }
+
+    const invalidSeeds = [
+      '',
+      '   ',
+      ' padded',
+      'padded ',
+      'has space',
+      'colon:seed',
+      'dot.seed',
+      'unicode-雪',
+      'x'.repeat(65),
+      7,
+      null,
+      undefined,
+    ];
+    for (const seed of invalidSeeds) {
+      expect(() => createFanStocksState(seed as string)).toThrow(
+        'FanStocks seed must match challenge seed format',
+      );
+    }
   });
 
   it('moves intro to tutorial and dismisses it into the draft', () => {
@@ -131,6 +156,18 @@ describe('fanStocksReducer', () => {
       state = fanStocksReducer(state, { type: 'DRAFT', ticker });
       expect(state.draft.roundIndex).toBe(round + 1);
       expect(state.phase).toBe(round === 2 ? 'ai-drafting' : 'draft');
+    }
+  });
+
+  it('preserves identity for malformed detail movement directions', () => {
+    let state = enterDraft('invalid-detail-direction');
+    const ticker = state.draft.groups[0]?.[0];
+    if (ticker === undefined) throw new Error('Missing draft card');
+    state = fanStocksReducer(state, { type: 'OPEN_DETAIL', ticker });
+
+    for (const direction of [0, 2, '1', null, Number.NaN]) {
+      const action = ({ type: 'MOVE_DETAIL', direction } as unknown) as FanStocksAction;
+      expect(fanStocksReducer(state, action)).toBe(state);
     }
   });
 
@@ -311,12 +348,11 @@ describe('fanStocksReducer', () => {
     expect(fanStocksReducer(state, { type: 'MARKET_TICK' })).toBe(state);
   });
 
-  it('derives a clean rematch seed, skips tutorial, and increments rematch index', () => {
+  it('derives challenge-safe distinct rematch seeds and skips the tutorial', () => {
     const result = advanceToTick(enterMarket('rematch'), TOTAL_MARKET_TICKS);
     expect(result.phase).toBe('results');
     const rematch = fanStocksReducer(result, { type: 'REMATCH' });
     expect(rematch).toMatchObject({
-      seed: 'rematch:rematch:1',
       rematchIndex: 1,
       phase: 'draft',
       tutorialSeen: true,
@@ -330,6 +366,27 @@ describe('fanStocksReducer', () => {
     expect(rematch.priceHistory).toEqual([]);
     expect(rematch.draft.picks).toEqual([]);
     expect(rematch.draft.groups).not.toEqual(result.draft.groups);
+    expect(rematch.seed).toMatch(/^rematch-1-[a-z0-9]+$/);
+    expect(rematch.seed.length).toBeLessThanOrEqual(64);
+    expect(formatChallenge({ seed: rematch.seed, rulesetVersion: 1 })).toContain(
+      `seed=${rematch.seed}`,
+    );
+
+    const repeatedResult = advanceToTick(
+      fanStocksReducer(finishDraft(rematch), { type: 'AI_DRAFTS_READY' }),
+      TOTAL_MARKET_TICKS,
+    );
+    const repeated = fanStocksReducer(repeatedResult, { type: 'REMATCH' });
+    expect(repeated.rematchIndex).toBe(2);
+    expect(repeated.seed).toMatch(/^rematch-2-[a-z0-9]+$/);
+    expect(repeated.seed).not.toBe(rematch.seed);
+    expect(repeated.seed.length).toBeLessThanOrEqual(64);
+    expect(formatChallenge({ seed: repeated.seed, rulesetVersion: 1 })).toContain(
+      `seed=${repeated.seed}`,
+    );
+
+    const replay = fanStocksReducer(result, { type: 'REMATCH' });
+    expect(replay.seed).toBe(rematch.seed);
   });
 
   it('starts a clean new league from any phase and validates its seed', () => {
@@ -345,12 +402,17 @@ describe('fanStocksReducer', () => {
       result: null,
     });
     expect(() => fanStocksReducer(market, { type: 'NEW_LEAGUE', seed: ' ' })).toThrow(
-      'FanStocks seed must be non-empty',
+      'FanStocks seed must match challenge seed format',
     );
   });
 
   it('returns the identical state for invalid, out-of-phase, and no-op actions', () => {
     const intro = createFanStocksState('invalid-actions');
+    for (const malformed of [null, undefined, 0, 'START_LEAGUE']) {
+      expect(
+        fanStocksReducer(intro, (malformed as unknown) as FanStocksAction),
+      ).toBe(intro);
+    }
     const unknownAction = ({
       type: 'NOT_A_FANSTOCKS_ACTION',
     } as unknown) as FanStocksAction;
