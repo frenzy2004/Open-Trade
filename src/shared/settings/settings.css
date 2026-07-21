@@ -41,6 +41,10 @@
   accent-color: var(--color-gain-green);
 }
 
+.settings-row--volume input {
+  width: min(180px, 42vw);
+}
+
 @media (max-width: 420px) {
   .settings-recovery {
     align-items: stretch;

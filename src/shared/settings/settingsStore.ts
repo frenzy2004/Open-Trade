@@ -8,11 +8,13 @@ import {
 export interface AppSettings {
   readonly muted: boolean
   readonly reducedMotion: boolean
+  readonly volume: number
 }
 
 export const DEFAULT_SETTINGS: AppSettings = Object.freeze({
   muted: false,
   reducedMotion: false,
+  volume: 0.7,
 })
 
 export const SETTINGS_SAVE_KEY = 'open-trade:settings'
@@ -27,16 +29,22 @@ function isSettingsRecord(value: unknown): value is AppSettings {
     Object.hasOwn(record, 'muted') &&
     typeof record.muted === 'boolean' &&
     Object.hasOwn(record, 'reducedMotion') &&
-    typeof record.reducedMotion === 'boolean'
+    typeof record.reducedMotion === 'boolean' &&
+    Object.hasOwn(record, 'volume') &&
+    typeof record.volume === 'number' &&
+    Number.isFinite(record.volume) &&
+    record.volume >= 0 &&
+    record.volume <= 1
   )
 }
 
 const settingsCodec: GameSaveCodec<AppSettings> = {
   key: SETTINGS_SAVE_KEY,
-  version: 1,
+  version: 2,
   encode: (value) => ({
     muted: value.muted,
     reducedMotion: value.reducedMotion,
+    volume: value.volume,
   }),
   decode: (value) => {
     if (isSettingsRecord(value)) {
@@ -45,6 +53,7 @@ const settingsCodec: GameSaveCodec<AppSettings> = {
         value: {
           muted: value.muted,
           reducedMotion: value.reducedMotion,
+          volume: value.volume,
         },
       }
     }
@@ -67,15 +76,34 @@ function migrateVersionZero(value: unknown): AppSettings {
     return {
       muted: !record.soundEnabled,
       reducedMotion: record.reduceMotion,
+      volume: DEFAULT_SETTINGS.volume,
     }
   }
   return DEFAULT_SETTINGS
 }
 
+function migrateVersionOne(value: unknown): unknown {
+  if (typeof value !== 'object' || value === null) return value
+  const record = value as Record<string, unknown>
+  if (
+    Object.hasOwn(record, 'muted')
+    && typeof record.muted === 'boolean'
+    && Object.hasOwn(record, 'reducedMotion')
+    && typeof record.reducedMotion === 'boolean'
+  ) {
+    return {
+      muted: record.muted,
+      reducedMotion: record.reducedMotion,
+      volume: DEFAULT_SETTINGS.volume,
+    }
+  }
+  return value
+}
+
 export function createSettingsStore(
   storage?: StorageLike,
 ): GameStore<AppSettings> {
-  const migrations = { 0: migrateVersionZero }
+  const migrations = { 0: migrateVersionZero, 1: migrateVersionOne }
 
   return storage === undefined
     ? createGameStore(settingsCodec, { migrations })
