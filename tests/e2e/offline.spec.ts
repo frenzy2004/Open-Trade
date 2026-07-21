@@ -16,6 +16,8 @@ test('replays the cached hub and every game route after the network is removed',
   context,
   page,
 }) => {
+  test.setTimeout(90_000)
+
   const pageErrors: string[] = []
   const consoleErrors: string[] = []
   const missingResponses: string[] = []

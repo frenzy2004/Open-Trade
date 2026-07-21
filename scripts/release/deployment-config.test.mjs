@@ -77,8 +77,17 @@ test('offline verification rejects failed media requests explicitly', () => {
 
 test('CI enforces the deployment matrix and provisions audio verification', () => {
   const ci = read('.github/workflows/ci.yml')
+  const pages = read('.github/workflows/pages.yml')
 
   assert.match(ci, /actions\/setup-python@v6/u)
+  assert.match(
+    ci,
+    /python -m pip install --requirement requirements-assets\.txt/u,
+  )
+  assert.match(
+    pages,
+    /python -m pip install --requirement requirements-assets\.txt/u,
+  )
   assert.match(ci, /npm run test:deployment-smoke/u)
   assert.match(ci, /(?:apt-get install[^\n]*ffmpeg|command -v ffprobe)/u)
 })

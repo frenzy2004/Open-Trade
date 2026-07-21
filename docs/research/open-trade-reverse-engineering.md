@@ -227,3 +227,11 @@ Date: 2026-07-21
 - Follow-on failure: the first nested run revealed that the restrictive CSP blocked Phaser's same-origin texture decoder because it creates `blob:` image URLs. The route stayed playable via fallback primitives, hiding the missing Higgsfield textures.
 - Recovery: allow `blob:` only in `img-src` in both the HTML and Vercel policies. Keep scripts, workers, frames, objects, and network connections restricted. The full three-shape deployment matrix then passed with every game route freshly loaded offline.
 - Rule: security policy checks need a production runtime exercise. A fallback UI can conceal blocked media, so assert console errors, 404 responses, and all non-intentional request failures.
+
+### Clean-runner dependency and concurrency proof
+
+- Failure: GitHub Actions run `29826438647` selected a clean Python 3.13 runtime but installed only Node packages and FFmpeg. The image validator failed immediately with `ModuleNotFoundError: No module named 'PIL'`, so later E2E and deployment-matrix steps were correctly skipped.
+- Recovery: both CI and Pages verification install the pinned `requirements-assets.txt` after selecting Python; a release contract test requires that step in both workflows.
+- Follow-on failure: in the 54-case local E2E run, the touch offline scenario exceeded Playwright's generic 30-second limit while the CPU-heavy deterministic Runner case executed concurrently. The same desktop/touch offline pair passed together in 14.4 seconds when isolated.
+- Recovery: give the comprehensive offline scenario a 90-second test-specific ceiling while keeping all ordinary tests at 30 seconds. Do not weaken its assertions or retries.
+- Rule: test dependencies must be recreated on a clean runner, and a timeout should reflect the verified worst concurrent workload. Raising a bound is acceptable only after the exact scenario passes in isolation and the product assertions remain unchanged.
