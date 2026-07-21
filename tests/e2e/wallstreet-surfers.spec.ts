@@ -185,7 +185,9 @@ test('replays coin, train, restart, and market gate on desktop and real touch', 
   await expect(page.locator('[data-runner-hud="coins"]')).toHaveText('2', {
     timeout: 8_000,
   })
-  await waitForDistance(page, 225)
+  // Move as soon as the 211m right-lane coin resolves. Waiting until 225m left
+  // too little real-time margin before the 243m center coin on a loaded touch
+  // browser, even though the gesture itself had already been proven correct.
   await moveLane(page, 'left', testInfo)
   await expect.poll(() => debugValue(page, 'lane')).toBe('0')
   await expect(page.locator('[data-runner-hud="coins"]')).toHaveText('3', {

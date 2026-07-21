@@ -34,6 +34,13 @@ Date: 2026-07-21
 
 ## Failures and recoveries
 
+### Touch Runner test missed the third deterministic coin under load
+
+- Failure: the combined Chromium desktop/touch run passed 49 of 50 checks, but the touch route remained on two coins after changing from the right lane to the center lane.
+- Evidence: the retained screenshot showed the run had already reached the 307 m market gate. The seeded schedule places the prior right-lane coin at 211 m and the center coin at 243 m.
+- Cause: the test waited until at least 225 m before beginning a real CDP touch gesture. Bounding-box reads, scrolling checks, CDP setup, five touch events, and the intentional 100 ms gesture settle left only an 18 m window and could finish after the coin on a loaded browser.
+- Recovery: change lanes immediately after the 211 m coin is observed, retaining the same gameplay assertion with a realistic 32 m response window. The isolated real-touch scenario then passed in 67.1 seconds.
+
 ### Hub progress cards stayed stale after game saves
 
 - Failure: FanStocks and Wallstreet Surfers persisted their own saves, but returning to the hub still showed `No active league` and a best score of `0`.
