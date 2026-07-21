@@ -13,6 +13,7 @@ import {
 } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { readGameProgress } from '../../../app/routes/progressStore'
 import { AudioProvider } from '../../../shared/audio/AudioContext'
 import {
   AudioManager,
@@ -93,6 +94,7 @@ function createMemoryStorage() {
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  window.localStorage.clear()
 })
 
 describe('createRunnerGame', () => {
@@ -330,6 +332,39 @@ function MotionToggle() {
 }
 
 describe('WallstreetSurfersRoute lifecycle', () => {
+  it('publishes a persisted best score to the hub progress card', async () => {
+    const state = createRunnerState({ seed: 'hub-score', reducedMotion: false })
+    state.score = 888
+    state.bestScore = 888
+    const handle = {
+      destroy: vi.fn(),
+      dispatch: vi.fn(),
+      completeTutorial: vi.fn(),
+      snapshot: () => state,
+      setReducedMotion: vi.fn(),
+      diagnostics: vi.fn(),
+    } as RunnerGameHandle
+    const view = render(
+      <MemoryRouter initialEntries={['/wallstreet-surfers?seed=hub-score&rules=1']}>
+        <SettingsProvider store={createSettingsStore(createMemoryStorage())}>
+          <WallstreetSurfersRoute
+            createGame={() => handle}
+            store={createRunnerStore(createMemoryStorage())}
+          />
+        </SettingsProvider>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(handle.snapshot()).toBe(state))
+    view.unmount()
+
+    expect(readGameProgress('wallstreet-surfers')).toEqual({
+      label: 'Best score',
+      value: '888',
+      tone: 'positive',
+    })
+  })
+
   it('creates once across rerenders, restores save data, and destroys on unmount', async () => {
     const storage = createMemoryStorage()
     const store = createRunnerStore(storage)

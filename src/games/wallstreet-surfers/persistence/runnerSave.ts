@@ -127,6 +127,16 @@ export function createRunnerSave(
   return decoded.value
 }
 
+export function progressBadgeForRunnerSave(
+  save: RunnerSaveV1,
+): GameProgressBadge {
+  return Object.freeze({
+    label: 'Best score',
+    value: save.bestScore.toLocaleString('en-US'),
+    tone: save.bestScore > 0 ? 'positive' : 'neutral',
+  })
+}
+
 export function getRunnerProgressBadge(
   store: GameStore<RunnerSaveV1> = runnerStore,
 ): GameProgressBadge {
@@ -138,10 +148,9 @@ export function getRunnerProgressBadge(
       tone: 'warning',
     })
   }
-  const bestScore = loaded.status === 'ready' ? loaded.value.bestScore : 0
-  return Object.freeze({
-    label: 'Best score',
-    value: bestScore.toLocaleString('en-US'),
-    tone: bestScore > 0 ? 'positive' : 'neutral',
-  })
+  return progressBadgeForRunnerSave(
+    loaded.status === 'ready'
+      ? loaded.value
+      : createRunnerSave('new-run', 0, false),
+  )
 }

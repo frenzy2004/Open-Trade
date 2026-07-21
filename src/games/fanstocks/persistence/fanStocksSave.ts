@@ -644,18 +644,9 @@ export function createFanStocksSave(
   return decoded.value;
 }
 
-export function getFanStocksProgressBadge(): GameProgressBadge | null {
-  const loaded = fanStocksStore.load();
-  if (loaded.status === 'empty') return null;
-  if (loaded.status === 'recovery-required') {
-    return {
-      label: 'FanStocks',
-      value: 'Progress needs reset',
-      tone: 'warning',
-    };
-  }
-
-  const state = loaded.value.state;
+export function progressBadgeForFanStocksState(
+  state: FanStocksState,
+): GameProgressBadge {
   if (state.phase === 'results') {
     return { label: 'FanStocks', value: 'League complete', tone: 'positive' };
   }
@@ -682,6 +673,20 @@ export function getFanStocksProgressBadge(): GameProgressBadge | null {
     };
   }
   return { label: 'FanStocks', value: 'League ready', tone: 'positive' };
+}
+
+export function getFanStocksProgressBadge(): GameProgressBadge | null {
+  const loaded = fanStocksStore.load();
+  if (loaded.status === 'empty') return null;
+  if (loaded.status === 'recovery-required') {
+    return {
+      label: 'FanStocks',
+      value: 'Progress needs reset',
+      tone: 'warning',
+    };
+  }
+
+  return progressBadgeForFanStocksState(loaded.value.state);
 }
 
 export function resetFanStocksProgress(): void {

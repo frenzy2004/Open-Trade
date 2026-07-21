@@ -6,6 +6,7 @@ import {
   useState,
 } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { setGameProgress } from '../../app/routes/progressStore';
 import {
   createGuestSeed,
   formatChallenge,
@@ -26,6 +27,7 @@ import type { TradeEvent } from './engine/trades';
 import {
   createFanStocksSave,
   fanStocksStore,
+  progressBadgeForFanStocksState,
 } from './persistence/fanStocksSave';
 
 export type FanStocksSaveProblem =
@@ -218,6 +220,8 @@ export function useFanStocksController(): FanStocksController {
   const previousTradeLog = useRef(state.tradeLog);
   const observedSearch = useRef(location.search);
   const pendingCanonicalSearch = useRef<string | null>(null);
+  const lastHubProgress = useRef<string | null>(null);
+  const hubProgressWarningShown = useRef(false);
 
   useEffect(() => {
     currentState.current = state;
@@ -232,7 +236,20 @@ export function useFanStocksController(): FanStocksController {
         createFanStocksSave(state, savedAt),
         { seed: state.seed, savedAt },
       );
-      if (saved.ok) return;
+      if (saved.ok) {
+        const badge = progressBadgeForFanStocksState(state);
+        const signature = `${badge.label}\u0000${badge.value}\u0000${badge.tone}`;
+        if (lastHubProgress.current === signature) return;
+        const progress = setGameProgress('fanstocks', badge);
+        if (progress.ok) {
+          lastHubProgress.current = signature;
+          hubProgressWarningShown.current = false;
+        } else if (!hubProgressWarningShown.current) {
+          hubProgressWarningShown.current = true;
+          addToast('League saved, but the hub progress card could not update', 'warning');
+        }
+        return;
+      }
       persistenceBlocked.current = true;
       // The external store reports failures synchronously; reflecting that
       // recoverable outcome is the purpose of this synchronization effect.
@@ -252,7 +269,7 @@ export function useFanStocksController(): FanStocksController {
         detail: 'FanStocks progress could not be encoded',
       });
     }
-  }, [state]);
+  }, [addToast, state]);
 
   useEffect(() => {
     const searchChanged = location.search !== observedSearch.current;

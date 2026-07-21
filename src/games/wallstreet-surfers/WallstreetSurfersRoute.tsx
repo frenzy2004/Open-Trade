@@ -6,6 +6,7 @@ import {
   useState,
 } from 'react'
 import { useLocation } from 'react-router-dom'
+import { setGameProgress } from '../../app/routes/progressStore'
 import { useAudio } from '../../shared/audio/AudioContext'
 import type { GameStore } from '../../shared/persistence/gameStore'
 import { createGuestSeed, parseChallenge } from '../../shared/routing/challenge'
@@ -28,6 +29,7 @@ import {
 } from './phaser/createRunnerGame'
 import {
   createRunnerSave,
+  progressBadgeForRunnerSave,
   runnerStore,
   type RunnerSaveV1,
 } from './persistence/runnerSave'
@@ -109,17 +111,25 @@ export function WallstreetSurfersRoute({
     initialLoad.status === 'recovery-required',
   )
   const [saveError, setSaveError] = useState(false)
+  const [hubProgressError, setHubProgressError] = useState(false)
   const [shareStatus, setShareStatus] = useState<string | null>(null)
   const persistState = useCallback((state: RunnerState) => {
+    const save = createRunnerSave(
+      state.seed,
+      Math.max(state.bestScore, state.score),
+      tutorialCompleteRef.current,
+    )
     const result = store.save(
-      createRunnerSave(
-        state.seed,
-        Math.max(state.bestScore, state.score),
-        tutorialCompleteRef.current,
-      ),
+      save,
       { seed: state.seed },
     )
     setSaveError(!result.ok)
+    if (!result.ok) return
+    const progress = setGameProgress(
+      'wallstreet-surfers',
+      progressBadgeForRunnerSave(save),
+    )
+    setHubProgressError(!progress.ok)
   }, [store])
   const handleSnapshot = useCallback((state: RunnerState) => {
     runnerAudio.observe(state)
@@ -276,6 +286,11 @@ export function WallstreetSurfersRoute({
       {saveError ? (
         <div role="alert">
           Your latest score could not save. Check browser storage before leaving.
+        </div>
+      ) : null}
+      {hubProgressError ? (
+        <div role="alert">
+          Your score saved, but the hub best-score card could not update.
         </div>
       ) : null}
       <div

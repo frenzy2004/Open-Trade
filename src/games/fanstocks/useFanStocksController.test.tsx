@@ -9,6 +9,7 @@ import {
   type NavigateFunction,
 } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readGameProgress } from '../../app/routes/progressStore';
 import type { GameStore } from '../../shared/persistence/gameStore';
 import { createSeededRng } from '../../shared/rng/seededRng';
 import { SettingsProvider } from '../../shared/settings/SettingsContext';
@@ -378,6 +379,20 @@ describe('useFanStocksController initialization and persistence', () => {
     if (loaded.status === 'ready') {
       expect(new Date(loaded.value.savedAt).toISOString()).toBe(loaded.value.savedAt);
     }
+  });
+
+  it('publishes the current league phase to the hub progress card', () => {
+    const { result } = renderHook(() => useFanStocksController(), {
+      wrapper: makeWrapper(),
+    });
+
+    reachMarket(result);
+
+    expect(readGameProgress('fanstocks')).toEqual({
+      label: 'FanStocks',
+      value: 'Monday market',
+      tone: 'positive',
+    });
   });
 
   it('captures storage save failures and recovers on a successful new league', () => {
