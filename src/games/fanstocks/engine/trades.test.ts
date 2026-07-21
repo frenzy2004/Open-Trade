@@ -72,6 +72,98 @@ function outgoing(
   );
 }
 
+interface CardSubstitutionCase {
+  readonly label: string;
+  readonly substitute: (card: StockCard) => StockCard;
+  readonly expectedError: string;
+}
+
+const STRUCTURAL_CARD_ERROR = 'Card registry must structurally match canonical FanStocks cards';
+const VALID_CARD_ERROR = 'Card registry must contain valid unique cards';
+const CARD_SUBSTITUTIONS: readonly CardSubstitutionCase[] = [
+  {
+    label: 'company',
+    substitute: (card) => ({ ...card, company: `${card.company} Substitute` }),
+    expectedError: STRUCTURAL_CARD_ERROR,
+  },
+  {
+    label: 'sector',
+    substitute: (card) => ({
+      ...card,
+      sector: card.sector === 'technology' ? 'consumer' : 'technology',
+    }),
+    expectedError: STRUCTURAL_CARD_ERROR,
+  },
+  {
+    label: 'volatility',
+    substitute: (card) => ({
+      ...card,
+      volatility: card.volatility < 0.95 ? card.volatility + 0.01 : card.volatility - 0.01,
+    }),
+    expectedError: STRUCTURAL_CARD_ERROR,
+  },
+  {
+    label: 'momentumBias',
+    substitute: (card) => ({
+      ...card,
+      momentumBias: card.momentumBias < 0.95
+        ? card.momentumBias + 0.01
+        : card.momentumBias - 0.01,
+    }),
+    expectedError: STRUCTURAL_CARD_ERROR,
+  },
+  {
+    label: 'correlationGroup',
+    substitute: (card) => ({
+      ...card,
+      correlationGroup: card.correlationGroup === 'growth' ? 'defensive' : 'growth',
+    }),
+    expectedError: STRUCTURAL_CARD_ERROR,
+  },
+  {
+    label: 'thesis',
+    substitute: (card) => ({ ...card, thesis: `${card.thesis} Substitute.` }),
+    expectedError: STRUCTURAL_CARD_ERROR,
+  },
+  {
+    label: 'evidence content',
+    substitute: (card) => ({
+      ...card,
+      evidence: [
+        'Substituted evidence bullet',
+        card.evidence[1],
+        card.evidence[2],
+      ],
+    }),
+    expectedError: STRUCTURAL_CARD_ERROR,
+  },
+  {
+    label: 'evidence order',
+    substitute: (card) => ({
+      ...card,
+      evidence: [card.evidence[1], card.evidence[0], card.evidence[2]],
+    }),
+    expectedError: STRUCTURAL_CARD_ERROR,
+  },
+  {
+    label: 'artworkKey',
+    substitute: (card) => ({ ...card, artworkKey: `${card.artworkKey}-substitute` }),
+    expectedError: STRUCTURAL_CARD_ERROR,
+  },
+  {
+    label: 'syntheticDemo',
+    substitute: (card) => ({
+      ...card,
+      syntheticDemo: false,
+    }) as unknown as StockCard,
+    expectedError: VALID_CARD_ERROR,
+  },
+];
+
+const OUTGOING_SUBSTITUTION_CASES = CARD_SUBSTITUTIONS.flatMap((substitution) => (
+  (['involved', 'unrelated'] as const).map((scope) => ({ ...substitution, scope }))
+));
+
 describe('FanStocks trade offers', () => {
   it('creates a valid frozen incoming offer with explicit direction and sides', () => {
     const offer = presentOffer(createIncomingTrade(
@@ -388,6 +480,91 @@ describe('outgoing FanStocks trade decisions', () => {
       STOCKS,
       createSeededRng('decision'),
     ));
+  });
+
+  it.each(OUTGOING_SUBSTITUTION_CASES)(
+    'rejects a $scope same-ticker substitution of $label',
+    ({ scope, substitute, expectedError }) => {
+      const offer = outgoing();
+      const unrelated = STOCKS.find(({ ticker }) => (
+        ticker !== offer.playerGives && ticker !== offer.playerReceives
+      ));
+      if (unrelated === undefined) throw new Error('Missing unrelated card fixture');
+      const targetTicker = scope === 'involved' ? offer.playerGives : unrelated.ticker;
+      const substitutedCards = STOCKS.map((card) => (
+        card.ticker === targetTicker ? substitute(card) : card
+      ));
+
+      expect(() => decideOutgoingTrade(
+        offer,
+        personality('momentum'),
+        substitutedCards,
+        createSeededRng(`outgoing-${scope}-${targetTicker}`),
+      )).toThrow(expectedError);
+    },
+  );
+
+  it.each(['incomplete', 'duplicate', 'unknown'] as const)(
+    'rejects a $kind outgoing card registry',
+    (kind) => {
+      const offer = outgoing();
+      const unrelated = STOCKS.find(({ ticker }) => (
+        ticker !== offer.playerGives && ticker !== offer.playerReceives
+      ));
+      if (unrelated === undefined) throw new Error('Missing unrelated card fixture');
+      const duplicate = STOCKS.find(({ ticker }) => ticker !== unrelated.ticker);
+      if (duplicate === undefined) throw new Error('Missing duplicate card fixture');
+
+      const cards: readonly StockCard[] = kind === 'incomplete'
+        ? STOCKS.filter(({ ticker }) => ticker !== unrelated.ticker)
+        : STOCKS.map((card) => {
+          if (card.ticker !== unrelated.ticker) return card;
+          if (kind === 'duplicate') return duplicate;
+          return {
+            ...card,
+            ticker: 'ZZZZ',
+            company: 'Unknown Company',
+            artworkKey: 'zzzz',
+          };
+        });
+      const expectedError = kind === 'duplicate'
+        ? VALID_CARD_ERROR
+        : 'Card registry must contain all 12 canonical FanStocks cards exactly once';
+
+      expect(() => decideOutgoingTrade(
+        offer,
+        personality('momentum'),
+        cards,
+        createSeededRng(`outgoing-${kind}`),
+      )).toThrow(expectedError);
+    },
+  );
+
+  it('accepts structurally equal deep card clones for outgoing decisions', () => {
+    const offer = outgoing();
+    const clonedCards: readonly StockCard[] = STOCKS.map((card) => ({
+      ...card,
+      evidence: [...card.evidence],
+    }));
+
+    const cloneDecision = decideOutgoingTrade(
+      offer,
+      personality('momentum'),
+      clonedCards,
+      createSeededRng('outgoing-clones'),
+    );
+    const canonicalDecision = decideOutgoingTrade(
+      offer,
+      personality('momentum'),
+      STOCKS,
+      createSeededRng('outgoing-clones'),
+    );
+
+    expect(cloneDecision).toBe(canonicalDecision);
+    for (const [index, clone] of clonedCards.entries()) {
+      expect(clone).not.toBe(STOCKS[index]);
+      expect(clone.evidence).not.toBe(STOCKS[index]?.evidence);
+    }
   });
 
   it('uses an offer-id fork for jitter without consuming the session RNG', () => {

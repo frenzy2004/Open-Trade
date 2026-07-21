@@ -328,6 +328,7 @@ export function decideOutgoingTrade(
   const cardByTicker = new Map(cards.map((card) => [card.ticker, card] as const));
   const received = getCard(cardByTicker, offer.playerGives);
   const given = getCard(cardByTicker, offer.playerReceives);
+  assertCompleteCanonicalCardRegistry(cards);
   const scoreReceived = scoreCardForPersonality(personality, received, []);
   const scoreGiven = scoreCardForPersonality(personality, given, []);
   if (!Number.isFinite(scoreReceived) || !Number.isFinite(scoreGiven)) {
