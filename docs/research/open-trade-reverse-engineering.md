@@ -245,3 +245,9 @@ Date: 2026-07-21
 - Follow-on failure: `--system` then revealed that the Node builder exposes Python 3.9.25, which cannot resolve current Pillow 12.3.0 or NumPy 2.5.1.
 - Recovery: `uv` creates an isolated managed Python 3.13 environment, installs the unchanged pins into it, and the Vercel build prepends only that environment's `bin` directory to `PATH` before running the ordinary asset/build/budget commands.
 - Rule: CI setup does not configure a hosting provider's independent builder. Every clean deployment environment needs an explicit dependency contract, and a failed build must never be treated as a usable URL.
+
+### Manual pointer-target audit after deployment
+
+- Failure: on the live 1265×720 browser viewport, the decorative `OT` deck overlapped Momentum's trade button. Balanced remained clickable, so the existing full-league E2E passed; the desktop extremes at 1024 and 1440 also missed this intermediate geometry.
+- Recovery: add a 1265×720 regression that proves the deck rectangle intersects none of the three trade controls and that a center click opens each opponent's outgoing ticket. Move the decorative deck into the table's empty lower-center space and make it non-interactive by definition.
+- Rule: responsive extremes do not cover every absolute-position geometry transition. Manual deployed playthroughs should click every repeated control, and collision tests should include the viewport that exposed the issue.

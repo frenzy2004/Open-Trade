@@ -142,6 +142,11 @@
   background: #1b1d21;
 }
 
+.league-screen__deck {
+  inset-block-start: 68%;
+  pointer-events: none;
+}
+
 .draft-screen {
   width: min(900px, calc(100% - 40px));
   min-height: 100svh;

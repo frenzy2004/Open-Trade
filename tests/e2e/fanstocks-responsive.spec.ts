@@ -147,6 +147,44 @@ for (const width of [320, 375, 768, 1024, 1440]) {
   })
 }
 
+test('desktop deck stays clear and every opponent trade opens', async ({
+  page,
+}) => {
+  const browserErrors = captureBrowserErrors(page)
+  await page.setViewportSize({ width: 1265, height: 720 })
+  await page.clock.install()
+  await page.goto('/Open-Trade/#/fanstocks?seed=trade-hit-targets&rules=1')
+  await enterMarket(page)
+  await page.clock.runFor(650)
+  await expect(page.getByRole('heading', { name: 'Monday' })).toBeVisible()
+  await page.getByRole('button', { name: 'Pause market' }).click()
+
+  const overlaps = await page.evaluate(() => {
+    const deck = document.querySelector('.league-screen__deck')
+      ?.getBoundingClientRect()
+    if (deck === undefined) return ['deck missing']
+    return Array.from(document.querySelectorAll<HTMLElement>('.opponent-seat > button'))
+      .flatMap((button) => {
+        const rect = button.getBoundingClientRect()
+        const overlapsDeck = rect.left < deck.right
+          && rect.right > deck.left
+          && rect.top < deck.bottom
+          && rect.bottom > deck.top
+        return overlapsDeck ? [button.getAttribute('aria-label') ?? 'trade button'] : []
+      })
+  })
+  expect(overlaps).toEqual([])
+
+  for (const opponent of ['Momentum', 'Contrarian', 'Balanced']) {
+    await page.getByRole('button', { name: `Offer ${opponent} a trade` }).click()
+    await expect(
+      page.getByRole('dialog', { name: `Offer ${opponent} a trade` }),
+    ).toBeVisible()
+    await page.getByRole('button', { name: 'Cancel' }).click()
+  }
+  expect(browserErrors).toEqual([])
+})
+
 test('card detail supports keyboard entry, wrapped navigation, Escape, and focus return', async ({
   page,
 }) => {
