@@ -228,6 +228,25 @@ export function SeasonRoute() {
     })
   }
 
+  const useSuggestedNotes = () => {
+    for (const call of state.draft) {
+      const thesis = findSeasonThesis(call.thesisId)
+      if (thesis === null) continue
+      dispatch({
+        type: 'ADD_DRAFT_CALL',
+        call: {
+          ...call,
+          reason: call.reason.trim().length === 0
+            ? thesis.prompt
+            : call.reason,
+          evidenceThatChangesMind: call.evidenceThatChangesMind.trim().length === 0
+            ? `I would reconsider if this counterargument holds: ${thesis.updates[0].counterargument}`
+            : call.evidenceThatChangesMind,
+        },
+      })
+    }
+  }
+
   const resetRecovery = () => {
     try {
       const cleared = resetSeasonProgress()
@@ -353,34 +372,49 @@ export function SeasonRoute() {
             })}
           </div>
           {state.draft.length === 0 ? null : (
-            <div className="season-call-editors">
-              {state.draft.map((call) => {
-                const thesis = findSeasonThesis(call.thesisId)
-                if (thesis === null) return null
-                return (
-                  <fieldset className="season-call-editor" key={call.thesisId} aria-label={`${thesis.ticker} call`}>
-                    <legend>{thesis.ticker} call</legend>
-                    <DirectionControls
-                      direction={call.direction}
-                      name={`${call.thesisId}-direction`}
-                      onChange={(direction) => updateDraftCall(call.thesisId, { direction })}
-                    />
-                    <label className="season-field">
-                      <span>{thesis.ticker} confidence: {call.confidence}%</span>
-                      <input aria-label={`${thesis.ticker} confidence`} min="50" max="95" step="1" type="range" value={call.confidence} onChange={(event) => updateDraftCall(call.thesisId, { confidence: Number(event.currentTarget.value) })} />
-                    </label>
-                    <label className="season-field">
-                      <span>{thesis.ticker} reason</span>
-                      <textarea aria-label={`${thesis.ticker} reason`} maxLength={320} value={call.reason} onChange={(event) => updateDraftCall(call.thesisId, { reason: event.currentTarget.value })} placeholder="One specific, falsifiable reason" />
-                    </label>
-                    <label className="season-field">
-                      <span>Evidence that changes your {thesis.ticker} call</span>
-                      <textarea aria-label={`Evidence that changes your ${thesis.ticker} call`} maxLength={320} value={call.evidenceThatChangesMind} onChange={(event) => updateDraftCall(call.thesisId, { evidenceThatChangesMind: event.currentTarget.value })} placeholder="What would make you update?" />
-                    </label>
-                  </fieldset>
-                )
-              })}
-            </div>
+            <>
+              <aside className="season-speedrun" aria-label="Speedrun option">
+                <div>
+                  <strong>Want the fast path?</strong>
+                  <p>Keep your picks and confidence. We’ll add editable suggested notes so you can commit without typing.</p>
+                </div>
+                <Button
+                  disabled={state.draft.every(callIsComplete)}
+                  onClick={useSuggestedNotes}
+                  variant="secondary"
+                >
+                  Skip writing — use suggested notes
+                </Button>
+              </aside>
+              <div className="season-call-editors">
+                {state.draft.map((call) => {
+                  const thesis = findSeasonThesis(call.thesisId)
+                  if (thesis === null) return null
+                  return (
+                    <fieldset className="season-call-editor" key={call.thesisId} aria-label={`${thesis.ticker} call`}>
+                      <legend>{thesis.ticker} call</legend>
+                      <DirectionControls
+                        direction={call.direction}
+                        name={`${call.thesisId}-direction`}
+                        onChange={(direction) => updateDraftCall(call.thesisId, { direction })}
+                      />
+                      <label className="season-field">
+                        <span>{thesis.ticker} confidence: {call.confidence}%</span>
+                        <input aria-label={`${thesis.ticker} confidence`} min="50" max="95" step="1" type="range" value={call.confidence} onChange={(event) => updateDraftCall(call.thesisId, { confidence: Number(event.currentTarget.value) })} />
+                      </label>
+                      <label className="season-field">
+                        <span>{thesis.ticker} reason</span>
+                        <textarea aria-label={`${thesis.ticker} reason`} maxLength={320} value={call.reason} onChange={(event) => updateDraftCall(call.thesisId, { reason: event.currentTarget.value })} placeholder="One specific, falsifiable reason" />
+                      </label>
+                      <label className="season-field">
+                        <span>Evidence that changes your {thesis.ticker} call</span>
+                        <textarea aria-label={`Evidence that changes your ${thesis.ticker} call`} maxLength={320} value={call.evidenceThatChangesMind} onChange={(event) => updateDraftCall(call.thesisId, { evidenceThatChangesMind: event.currentTarget.value })} placeholder="What would make you update?" />
+                      </label>
+                    </fieldset>
+                  )
+                })}
+              </div>
+            </>
           )}
           <div className="season-actions">
             <Button

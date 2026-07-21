@@ -144,3 +144,31 @@ test('keeps the Monday draft within a 320px viewport with full-size tap targets'
   expect(box).not.toBeNull()
   expect(box?.height).toBeGreaterThanOrEqual(44)
 })
+
+test('speedruns Monday with suggested notes instead of required typing', async ({
+  page,
+}) => {
+  await page.goto('/Open-Trade/#/season')
+  for (const ticker of ['NVDA', 'TSLA', 'XLE']) {
+    await page.getByRole('button', {
+      name: new RegExp(`Add ${ticker} to your draft`, 'i'),
+    }).click()
+  }
+
+  const manualReason = 'Demand still looks stronger than consensus.'
+  await page.getByRole('textbox', { name: 'NVDA reason' }).fill(manualReason)
+
+  await page.getByRole('button', {
+    name: 'Skip writing — use suggested notes',
+  }).click()
+  for (const ticker of ['NVDA', 'TSLA', 'XLE']) {
+    await expect(page.getByRole('textbox', { name: `${ticker} reason` })).not.toHaveValue('')
+    await expect(page.getByRole('textbox', {
+      name: `Evidence that changes your ${ticker} call`,
+    })).not.toHaveValue('')
+  }
+  await expect(page.getByRole('textbox', { name: 'NVDA reason' })).toHaveValue(manualReason)
+  await expect(page.getByRole('button', { name: 'Commit three calls' })).toBeEnabled()
+  await page.getByRole('button', { name: 'Commit three calls' }).click()
+  await expect(page.getByRole('heading', { name: 'Invite your league', level: 1 })).toBeVisible()
+})
