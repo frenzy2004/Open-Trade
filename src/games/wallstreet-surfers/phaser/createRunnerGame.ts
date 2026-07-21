@@ -1,0 +1,246 @@
+import Phaser from 'phaser'
+import { createRunnerState } from '../engine/createRunnerState'
+import { stepRunner } from '../engine/stepRunner'
+import {
+  FIXED_STEP_MS,
+  type RunnerCommand,
+  type RunnerEntity,
+  type RunnerState,
+} from '../engine/types'
+import { RunnerScene } from './RunnerScene'
+
+const LOGICAL_WIDTH = 1280
+const LOGICAL_HEIGHT = 720
+const MAX_FRAME_DELTA_MS = 250
+const MAX_CATCH_UP_STEPS = 5
+const SEMANTIC_PUBLISH_TICKS = 6
+const FRAME_EPSILON_MS = 1e-9
+
+export interface RunnerGameInstance {
+  destroy(removeCanvas: boolean): void
+}
+
+export type RunnerPhaserConfig = Phaser.Types.Core.GameConfig & {
+  readonly scene: RunnerScene
+  /**
+   * The requested backing-store multiplier. Phaser 3.90 leaves this extension
+   * for host factories to apply, so it is kept explicit at our adapter seam.
+   */
+  readonly resolution: number
+}
+
+export type RunnerGameFactory = (
+  config: RunnerPhaserConfig,
+) => RunnerGameInstance
+
+export interface CreateRunnerGameOptions {
+  readonly seed: string
+  readonly reducedMotion: boolean
+  readonly bestScore?: number
+  readonly tutorialComplete?: boolean
+  readonly dprCap?: number
+  readonly gameFactory?: RunnerGameFactory
+  readonly onSnapshot?: (state: RunnerState) => void
+}
+
+export interface RunnerGameHandle {
+  destroy(): void
+  dispatch(command: RunnerCommand): void
+  setReducedMotion(reducedMotion: boolean): void
+  snapshot(): RunnerState
+  diagnostics(): RunnerDiagnostics
+}
+
+export interface RunnerDiagnostics {
+  readonly catchUpLimit: number
+  readonly droppedFrameMs: number
+}
+
+function freezeEntity(entity: RunnerEntity): RunnerEntity {
+  return Object.freeze({ ...entity })
+}
+
+function snapshotState(state: RunnerState): RunnerState {
+  const lastFailure = state.lastFailure === null
+    ? null
+    : Object.freeze({ ...state.lastFailure })
+  return Object.freeze({
+    ...state,
+    entities: Object.freeze(state.entities.map(freezeEntity)) as RunnerEntity[],
+    lastFailure,
+  })
+}
+
+function defaultGameFactory(config: RunnerPhaserConfig): RunnerGameInstance {
+  return new Phaser.Game(config)
+}
+
+function hasSemanticChange(previous: RunnerState, current: RunnerState): boolean {
+  const previousFailure = previous.lastFailure
+  const currentFailure = current.lastFailure
+  return previous.phase !== current.phase
+    || previous.lane !== current.lane
+    || previous.vertical !== current.vertical
+    || previous.score !== current.score
+    || previous.coins !== current.coins
+    || previous.streak !== current.streak
+    || previous.powellGap !== current.powellGap
+    || previous.reducedMotion !== current.reducedMotion
+    || previousFailure?.kind !== currentFailure?.kind
+    || previousFailure?.message !== currentFailure?.message
+    || previousFailure?.tip !== currentFailure?.tip
+    || previousFailure?.ticker !== currentFailure?.ticker
+}
+
+export function createRunnerGame(
+  parent: HTMLElement,
+  options: CreateRunnerGameOptions,
+): RunnerGameHandle {
+  if (!(parent instanceof HTMLElement)) {
+    throw new TypeError('Runner parent must be an HTMLElement')
+  }
+  const dprCap = options.dprCap ?? 1.5
+  if (!Number.isFinite(dprCap) || dprCap <= 0 || dprCap > 4) {
+    throw new RangeError('Runner dprCap must be between 0 and 4')
+  }
+  const stateConfig = {
+    seed: options.seed,
+    reducedMotion: options.reducedMotion,
+    ...(options.bestScore === undefined ? {} : { bestScore: options.bestScore }),
+  }
+  const state = createRunnerState(stateConfig)
+  const commands: RunnerCommand[] = []
+  let accumulatorMs = 0
+  let droppedFrameMs = 0
+  let destroyed = false
+  let autoPaused = false
+  let lastPublished: RunnerState | null = null
+
+  const publish = (force = false) => {
+    if (options.onSnapshot === undefined) return
+    if (
+      !force
+      && lastPublished !== null
+      && state.tick - lastPublished.tick < SEMANTIC_PUBLISH_TICKS
+      && !hasSemanticChange(lastPublished, state)
+    ) {
+      return
+    }
+    const next = snapshotState(state)
+    lastPublished = next
+    options.onSnapshot(next)
+  }
+  const advanceFrame = (rawDeltaMs: number) => {
+    if (destroyed || !Number.isFinite(rawDeltaMs) || rawDeltaMs <= 0) return
+    const acceptedDeltaMs = Math.min(rawDeltaMs, MAX_FRAME_DELTA_MS)
+    droppedFrameMs += rawDeltaMs - acceptedDeltaMs
+    accumulatorMs += acceptedDeltaMs
+    let catchUpSteps = 0
+    while (
+      accumulatorMs + FRAME_EPSILON_MS >= FIXED_STEP_MS
+      && catchUpSteps < MAX_CATCH_UP_STEPS
+    ) {
+      const frameCommands = commands.splice(0)
+      stepRunner(state, frameCommands, FIXED_STEP_MS)
+      accumulatorMs -= FIXED_STEP_MS
+      catchUpSteps += 1
+      if (Math.abs(accumulatorMs) < FRAME_EPSILON_MS) accumulatorMs = 0
+      if (state.phase !== 'running') {
+        accumulatorMs = 0
+        break
+      }
+    }
+    if (
+      catchUpSteps === MAX_CATCH_UP_STEPS
+      && accumulatorMs + FRAME_EPSILON_MS >= FIXED_STEP_MS
+    ) {
+      const droppedSteps = Math.floor(
+        (accumulatorMs + FRAME_EPSILON_MS) / FIXED_STEP_MS,
+      )
+      const catchUpDropMs = droppedSteps * FIXED_STEP_MS
+      accumulatorMs -= catchUpDropMs
+      droppedFrameMs += catchUpDropMs
+      if (Math.abs(accumulatorMs) < FRAME_EPSILON_MS) accumulatorMs = 0
+    }
+    publish()
+  }
+
+  const scene = new RunnerScene({
+    advanceFrame,
+    snapshot: () => state,
+  })
+  const gameFactory = options.gameFactory ?? defaultGameFactory
+  const pixelRatio = typeof window === 'undefined'
+    ? 1
+    : Math.max(1, window.devicePixelRatio || 1)
+  const game = gameFactory({
+    type: Phaser.AUTO,
+    parent,
+    width: LOGICAL_WIDTH,
+    height: LOGICAL_HEIGHT,
+    transparent: true,
+    resolution: Math.min(pixelRatio, dprCap),
+    scale: {
+      mode: Phaser.Scale.FIT,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+      autoRound: true,
+      width: LOGICAL_WIDTH,
+      height: LOGICAL_HEIGHT,
+    },
+    scene,
+  })
+
+  const handleVisibility = () => {
+    if (document.hidden) {
+      if (state.phase === 'running') {
+        stepRunner(state, ['PAUSE'], 0)
+        autoPaused = true
+        accumulatorMs = 0
+        publish()
+      }
+      return
+    }
+    if (autoPaused && state.phase === 'paused') {
+      stepRunner(state, ['PAUSE'], 0)
+      autoPaused = false
+      publish()
+    }
+  }
+  document.addEventListener('visibilitychange', handleVisibility)
+  publish(true)
+
+  return {
+    dispatch(command) {
+      if (destroyed) return
+      if (command === 'PAUSE' || command === 'RESTART') {
+        stepRunner(state, [command], 0)
+        autoPaused = false
+        accumulatorMs = 0
+        publish(true)
+        return
+      }
+      commands.push(command)
+    },
+    setReducedMotion(reducedMotion) {
+      if (destroyed) return
+      if (typeof reducedMotion !== 'boolean') {
+        throw new TypeError('Runner reducedMotion must be a boolean')
+      }
+      if (state.reducedMotion === reducedMotion) return
+      state.reducedMotion = reducedMotion
+      publish(true)
+    },
+    snapshot: () => snapshotState(state),
+    diagnostics: () => Object.freeze({
+      catchUpLimit: MAX_CATCH_UP_STEPS,
+      droppedFrameMs,
+    }),
+    destroy() {
+      if (destroyed) return
+      destroyed = true
+      document.removeEventListener('visibilitychange', handleVisibility)
+      scene.destroyRenderer()
+      game.destroy(true)
+    },
+  }
+}
