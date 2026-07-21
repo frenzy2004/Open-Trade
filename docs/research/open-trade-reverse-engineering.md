@@ -265,3 +265,13 @@ Date: 2026-07-21
 - Failure: on the live 1265×720 browser viewport, the decorative `OT` deck overlapped Momentum's trade button. Balanced remained clickable, so the existing full-league E2E passed; the desktop extremes at 1024 and 1440 also missed this intermediate geometry.
 - Recovery: add a 1265×720 regression that proves the deck rectangle intersects none of the three trade controls and that a center click opens each opponent's outgoing ticket. Move the decorative deck into the table's empty lower-center space and make it non-interactive by definition.
 - Rule: responsive extremes do not cover every absolute-position geometry transition. Manual deployed playthroughs should click every repeated control, and collision tests should include the viewport that exposed the issue.
+
+### OpenTrade Season integration and independent review
+
+- Failure: the first Season E2E reused the already-running port-4173 preview, whose bundle predated the `/season` route, and correctly reported `Market not found` for both the route and new hub copy.
+- Recovery: run the new acceptance flow on an isolated `PLAYWRIGHT_PORT`, force a fresh production build, and keep the existing user preview alive until the final verified bundle is ready to replace it.
+- Follow-on failure: the Tuesday revision editor read `event.currentTarget.value` inside a deferred React functional state updater. React had already cleared `currentTarget`, so the route boundary caught `Cannot read properties of null (reading 'value')`.
+- Recovery: capture every DOM value synchronously before entering the state updater. The desktop and touch acceptance now perform a real revision and assert zero page or console errors through receipt and rematch.
+- Independent review found that hostile proxy/accessor save inputs could throw, hidden/symbol fields and exotic arrays were not fully rejected, league codes collapsed to at most 32 sequences, and all fixtures coupled direction with benchmark points.
+- Recovery: the save decoder is now total and descriptor-exact, reconstructs engine reference invariants, and rejects accessors, symbols, hidden keys, sparse/decorated arrays, forged settlement, and future rules. League generation produces 120 unique codes across all ordered three-of-six week-one drafts. META now supplies a realistic positive absolute return that trails QQQ, proving benchmark points are independent from direction points. Rematch also guards the largest persistable week index.
+- Rule: a transparent score needs fixtures that independently exercise every component, and a share code needs measured entropy—not only a six-character appearance. Persistence review must include hostile JavaScript objects even when normal JSON storage cannot create them.

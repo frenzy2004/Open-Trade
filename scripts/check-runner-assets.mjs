@@ -75,9 +75,9 @@ const catalogPath = localFile('src/assets/catalog.ts')
 if (catalogPath !== null) {
   const catalog = readFileSync(catalogPath, 'utf8')
   const staticUrlImports = catalog.match(/from ['"].+\.(?:png|webp|ogg)\?url['"]/g)
-  if (staticUrlImports?.length !== 16) {
+  if (staticUrlImports?.length !== 17) {
     errors.push(
-      `asset catalog must contain 16 static ?url imports; found ${staticUrlImports?.length ?? 0}`,
+      `asset catalog must contain 17 static ?url imports; found ${staticUrlImports?.length ?? 0}`,
     )
   }
 }
@@ -87,6 +87,6 @@ if (errors.length > 0) {
   for (const error of errors) console.error(`- ${error}`)
   process.exitCode = 1
 } else {
-  console.log('runner asset gate passed: 8 rasters, 6 audio files, 16 emitted imports')
+  console.log('runner asset gate passed: 8 rasters, 6 audio files, 17 emitted imports')
 }
 

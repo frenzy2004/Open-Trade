@@ -19,6 +19,8 @@ Season connects the product into one complete ritual:
 
 The hackathon build supports solo play plus deterministic six-character league challenges. It never puts free-text reasoning in a shared URL and does not claim to synchronize a real-money or live multiplayer account.
 
+![OpenTrade Season weekly receipt](docs/screenshots/season.png)
+
 ## Three complete Market Lab games
 
 ### FanStocks
