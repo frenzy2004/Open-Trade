@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { asset } from '../../assets/catalog'
 import { Button } from '../../shared/ui/Button'
 import { Dialog } from '../../shared/ui/Dialog'
 import type { AiId } from './content/types'
@@ -24,6 +25,10 @@ const PHASES: readonly FanStocksPhase[] = Object.freeze([
   'market',
   'results',
 ])
+
+const FANSTOCKS_ASSET_STYLE: CSSProperties & Record<'--fs-draft-room', string> = Object.freeze({
+  '--fs-draft-room': `url("${asset('fs-draft-room').url}")`,
+})
 
 function isRecord(value: unknown): value is Record<PropertyKey, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -111,7 +116,7 @@ export default function FanStocksRoute() {
   }
 
   return (
-    <div className="fanstocks-app">
+    <div className="fanstocks-app" style={FANSTOCKS_ASSET_STYLE}>
       <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {shareStatus}
       </p>

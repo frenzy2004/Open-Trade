@@ -27,7 +27,7 @@
   pointer-events: none;
   background-image:
     linear-gradient(rgb(9 10 11 / 0.76), rgb(9 10 11 / 0.92)),
-    url('../../assets/generated/fanstocks/draft-room.webp');
+    var(--fs-draft-room, none);
   background-position: center;
   background-size: cover;
   opacity: 0.6;
@@ -455,6 +455,21 @@
 .fanstocks-persistence-alert a,
 .fanstocks-invalid-trade a { display: inline-flex; align-items: center; margin: 8px; }
 
+@media (max-width: 900px) {
+  .fanstocks-intro {
+    width: min(calc(100% - 40px), 600px);
+    grid-template-columns: minmax(0, 1fr);
+    align-content: center;
+    padding: 44px 0 64px;
+  }
+
+  .fanstocks-intro__table {
+    order: -1;
+    width: min(calc(100% - 56px), 540px);
+    margin: 32px auto 12px;
+  }
+}
+
 @media (max-width: 767px) {
   .fanstocks-app::before { background-position: 58% center; opacity: 0.42; }
   .fanstocks-intro { width: min(calc(100% - 32px), 480px); grid-template-columns: 1fr; align-content: center; padding: 28px 0 56px; }
@@ -491,4 +506,5 @@
 
   .stock-card:hover { transform: none; }
   .trade-flight { display: none; }
+  .fanstocks-app::before { position: absolute; }
 }

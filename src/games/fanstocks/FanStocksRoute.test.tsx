@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { asset } from '../../assets/catalog'
 import type { FanStocksController } from './useFanStocksController'
 import { createFanStocksState, fanStocksReducer, type FanStocksState } from './engine/fanStocksReducer'
 import type { FanStocksResult } from './engine/ranking'
@@ -95,6 +96,14 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('FanStocksRoute', () => {
+  it('wires the typed draft-room catalog asset through a CSS custom property', () => {
+    const { container } = renderRoute()
+
+    expect(container.querySelector('.fanstocks-app')).toHaveStyle(
+      `--fs-draft-room: url("${asset('fs-draft-room').url}")`,
+    )
+  })
+
   it('composes every controller phase without adding a nested main landmark', () => {
     const { container, rerender } = renderRoute()
     expect(screen.getByRole('button', { name: 'Start drafting' })).toBeVisible()
