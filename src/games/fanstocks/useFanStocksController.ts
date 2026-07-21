@@ -17,6 +17,7 @@ import type { AiId, Ticker } from './content/types';
 import {
   createFanStocksState,
   fanStocksReducer,
+  type FanStocksAction,
   type FanStocksState,
   type MarketSpeed,
 } from './engine/fanStocksReducer';
@@ -72,6 +73,20 @@ interface InitialControllerState {
   readonly state: FanStocksState;
   readonly saveProblem: FanStocksSaveProblem | null;
   readonly recoveryBlocked: boolean;
+}
+
+type ControllerAction = FanStocksAction | {
+  readonly type: 'CONTROLLER_REINITIALIZE';
+  readonly state: FanStocksState;
+};
+
+function controllerReducer(
+  state: FanStocksState,
+  action: ControllerAction,
+): FanStocksState {
+  return action.type === 'CONTROLLER_REINITIALIZE'
+    ? action.state
+    : fanStocksReducer(state, action);
 }
 
 function challengeIntent(search: string): boolean {
@@ -171,7 +186,7 @@ export function useFanStocksController(): FanStocksController {
   const location = useLocation();
   const navigate = useNavigate();
   const [initial] = useState(() => loadInitialState(location.search));
-  const [state, dispatch] = useReducer(fanStocksReducer, initial.state);
+  const [state, dispatch] = useReducer(controllerReducer, initial.state);
   const [saveProblem, setSaveProblem] = useState(initial.saveProblem);
   const { settings } = useSettings();
   const { addToast } = useToasts();
@@ -180,6 +195,8 @@ export function useFanStocksController(): FanStocksController {
   const visibilityPaused = useRef(false);
   const currentState = useRef(state);
   const previousTradeLog = useRef(state.tradeLog);
+  const observedSearch = useRef(location.search);
+  const pendingCanonicalSearch = useRef<string | null>(null);
 
   useEffect(() => {
     currentState.current = state;
@@ -217,12 +234,53 @@ export function useFanStocksController(): FanStocksController {
   }, [state]);
 
   useEffect(() => {
+    const searchChanged = location.search !== observedSearch.current;
+    if (searchChanged) {
+      observedSearch.current = location.search;
+      if (location.search === pendingCanonicalSearch.current) {
+        pendingCanonicalSearch.current = null;
+        return;
+      }
+
+      pendingCanonicalSearch.current = null;
+      const parsed = parseChallenge(location.search);
+      if (
+        parsed !== null
+        && parsed.rulesetVersion === FANSTOCKS_RULES.rulesetVersion
+        && parsed.seed === currentState.current.seed
+      ) {
+        if (urlBlocked.current) return;
+        const canonical = formatChallenge(parsed);
+        if (location.search !== canonical) {
+          pendingCanonicalSearch.current = canonical;
+          navigate(
+            { pathname: location.pathname, search: canonical },
+            { replace: true },
+          );
+        }
+        return;
+      }
+
+      const next = loadInitialState(location.search);
+      persistenceBlocked.current = next.recoveryBlocked;
+      urlBlocked.current = next.recoveryBlocked;
+      visibilityPaused.current = false;
+      currentState.current = next.state;
+      previousTradeLog.current = next.state.tradeLog;
+      // A newly observed route is an external input. Apply its complete
+      // initialization result before any state-driven persistence can run.
+      setSaveProblem(next.saveProblem);
+      dispatch({ type: 'CONTROLLER_REINITIALIZE', state: next.state });
+      return;
+    }
+
     if (urlBlocked.current) return;
     const expected = formatChallenge({
       seed: state.seed,
       rulesetVersion: FANSTOCKS_RULES.rulesetVersion,
     });
     if (location.search !== expected) {
+      pendingCanonicalSearch.current = expected;
       navigate(
         { pathname: location.pathname, search: expected },
         { replace: true },

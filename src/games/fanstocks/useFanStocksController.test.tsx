@@ -4,7 +4,9 @@ import { useEffect } from 'react';
 import {
   MemoryRouter,
   useLocation,
+  useNavigate,
   useNavigationType,
+  type NavigateFunction,
 } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameStore } from '../../shared/persistence/gameStore';
@@ -51,9 +53,40 @@ interface RouteRecord {
   readonly value: string;
 }
 
-function RouteObserver({ records }: { records: RouteRecord[] }) {
+interface RouteControl {
+  readonly publish: (navigate: NavigateFunction | null) => void;
+  readonly read: () => NavigateFunction | null;
+}
+
+function createRouteControl(): RouteControl {
+  let current: NavigateFunction | null = null;
+  return {
+    publish(navigate) {
+      current = navigate;
+    },
+    read() {
+      return current;
+    },
+  };
+}
+
+function RouteObserver({
+  control,
+  records,
+}: {
+  readonly control: RouteControl | undefined;
+  readonly records: RouteRecord[];
+}) {
   const location = useLocation();
   const action = useNavigationType();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (control === undefined) return;
+    control.publish(navigate);
+    return () => {
+      control.publish(null);
+    };
+  }, [control, navigate]);
   useEffect(() => {
     records.push({
       action,
@@ -67,6 +100,7 @@ function makeWrapper(
   initialEntry = '/fanstocks?seed=hook-seed&rules=1',
   options: {
     readonly reducedMotion?: boolean;
+    readonly routeControl?: RouteControl;
     readonly routeRecords?: RouteRecord[];
   } = {},
 ) {
@@ -83,7 +117,10 @@ function makeWrapper(
         >
           <ToastProvider>
             {options.routeRecords === undefined ? null : (
-              <RouteObserver records={options.routeRecords} />
+              <RouteObserver
+                control={options.routeControl}
+                records={options.routeRecords}
+              />
             )}
             {children}
           </ToastProvider>
@@ -91,6 +128,22 @@ function makeWrapper(
       </MemoryRouter>
     );
   };
+}
+
+function navigateExternally(control: RouteControl, to: string): void {
+  const navigate = control.read();
+  if (navigate === null) throw new Error('Route control is not mounted');
+  act(() => navigate(to));
+}
+
+function latestTimerIndex(
+  calls: readonly (readonly unknown[])[],
+  delay: number,
+): number {
+  for (let index = calls.length - 1; index >= 0; index -= 1) {
+    if (calls[index]?.[1] === delay) return index;
+  }
+  return -1;
 }
 
 function saveState(state: FanStocksState): void {
@@ -411,6 +464,202 @@ describe('useFanStocksController routing and public API', () => {
     const countAfterRematch = records.length;
     act(() => result.current.openDetail(firstCandidate(result.current.state, 0)));
     expect(records).toHaveLength(countAfterRematch);
+  });
+
+  it('reinitializes an active mounted league for an external valid challenge', () => {
+    const control = createRouteControl();
+    const records: RouteRecord[] = [];
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout');
+    const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout');
+    const { result } = renderHook(() => useFanStocksController(), {
+      wrapper: makeWrapper('/fanstocks?seed=seed-one&rules=1', {
+        routeControl: control,
+        routeRecords: records,
+      }),
+    });
+    reachMarket(result);
+    act(() => result.current.setSpeed(4));
+    for (let tick = 0; tick < 10; tick += 1) {
+      act(() => vi.advanceTimersByTime(1_250));
+    }
+    act(() => result.current.decideIncoming('accepted'));
+    const marketTimerIndex = latestTimerIndex(setTimeoutSpy.mock.calls, 1_250);
+    expect(marketTimerIndex).toBeGreaterThanOrEqual(0);
+    const oldMarketTimer = setTimeoutSpy.mock.results[marketTimerIndex]?.value;
+
+    navigateExternally(control, '/fanstocks?seed=seed-two&rules=1');
+
+    expect(result.current.state).toMatchObject({
+      seed: 'seed-two',
+      phase: 'intro',
+      rematchIndex: 0,
+      paused: false,
+      speed: 1,
+      pendingTrade: null,
+      tradeLog: [],
+      priceHistory: [],
+    });
+    expect(result.current.saveProblem).toBeNull();
+    expect(records.filter(({ value }) => value.includes('seed-two'))).toEqual([
+      { action: 'PUSH', value: '/fanstocks?seed=seed-two&rules=1' },
+    ]);
+    expect(clearTimeoutSpy).toHaveBeenCalledWith(oldMarketTimer);
+    expect(fanStocksStore.load()).toMatchObject({
+      status: 'ready',
+      seed: 'seed-two',
+      value: { state: { seed: 'seed-two', phase: 'intro' } },
+    });
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(result.current.state.phase).toBe('intro');
+  });
+
+  it.each([
+    ['/fanstocks?seed=bad%20seed&rules=1', 'malformed'],
+    ['/fanstocks?seed=seed-two&rules=2', 'incompatible'],
+  ])('preserves external invalid challenge evidence at %s', (url, reason) => {
+    const control = createRouteControl();
+    const records: RouteRecord[] = [];
+    const { result } = renderHook(() => useFanStocksController(), {
+      wrapper: makeWrapper('/fanstocks?seed=seed-one&rules=1', {
+        routeControl: control,
+        routeRecords: records,
+      }),
+    });
+    const storedBefore = localStorage.getItem(fanStocksSaveCodec.key);
+
+    navigateExternally(control, url);
+
+    expect(result.current.saveProblem).toMatchObject({
+      source: 'challenge',
+      reason,
+    });
+    expect(records.at(-1)?.value).toBe(url);
+    expect(localStorage.getItem(fanStocksSaveCodec.key)).toBe(storedBefore);
+    act(() => result.current.startLeague());
+    expect(localStorage.getItem(fanStocksSaveCodec.key)).toBe(storedBefore);
+    expect(records.at(-1)?.value).toBe(url);
+  });
+
+  it.each([
+    ['corrupt', '{broken'],
+    ['incompatible', JSON.stringify({
+      version: 2,
+      savedAt: SAVED_AT,
+      seed: 'old-seed',
+      data: {},
+    })],
+  ])('retains external valid challenge consent when the save is %s', (reason, raw) => {
+    const control = createRouteControl();
+    const records: RouteRecord[] = [];
+    const { result } = renderHook(() => useFanStocksController(), {
+      wrapper: makeWrapper('/fanstocks?seed=seed-one&rules=1', {
+        routeControl: control,
+        routeRecords: records,
+      }),
+    });
+    localStorage.setItem(fanStocksSaveCodec.key, raw);
+
+    navigateExternally(control, '/fanstocks?seed=seed-two&rules=1');
+
+    expect(result.current.state).toMatchObject({ seed: 'seed-two', phase: 'intro' });
+    expect(result.current.saveProblem).toMatchObject({ source: 'load', reason });
+    expect(localStorage.getItem(fanStocksSaveCodec.key)).toBe(raw);
+    expect(records.at(-1)?.value).toBe('/fanstocks?seed=seed-two&rules=1');
+    act(() => result.current.startLeague());
+    expect(localStorage.getItem(fanStocksSaveCodec.key)).toBe(raw);
+  });
+
+  it('does not reset progress for a same-seed order-only external URL change', () => {
+    const control = createRouteControl();
+    const records: RouteRecord[] = [];
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    const { result } = renderHook(() => useFanStocksController(), {
+      wrapper: makeWrapper('/fanstocks?seed=seed-one&rules=1', {
+        routeControl: control,
+        routeRecords: records,
+      }),
+    });
+    act(() => result.current.startLeague());
+    const writesBefore = setItem.mock.calls.length;
+
+    navigateExternally(control, '/fanstocks?rules=1&seed=seed-one');
+
+    expect(result.current.state).toMatchObject({
+      seed: 'seed-one',
+      phase: 'tutorial',
+    });
+    expect(setItem).toHaveBeenCalledTimes(writesBefore);
+    expect(records.slice(-2)).toEqual([
+      { action: 'PUSH', value: '/fanstocks?rules=1&seed=seed-one' },
+      { action: 'REPLACE', value: '/fanstocks?seed=seed-one&rules=1' },
+    ]);
+  });
+
+  it('acknowledges internal rematch and new-league replaces without reinitializing', () => {
+    saveState(tickState(createMarketState('result-seed'), 60));
+    const records: RouteRecord[] = [];
+    const { result } = renderHook(() => useFanStocksController(), {
+      wrapper: makeWrapper('/fanstocks', { routeRecords: records }),
+    });
+    act(() => result.current.rematch());
+    const rematchSeed = result.current.state.seed;
+    expect(result.current.state.phase).toBe('draft');
+    expect(records.filter(({ value }) => value.includes(rematchSeed))).toEqual([
+      {
+        action: 'REPLACE',
+        value: `/fanstocks?seed=${rematchSeed}&rules=1`,
+      },
+    ]);
+
+    act(() => result.current.newLeague());
+    const newSeed = result.current.state.seed;
+    expect(result.current.state.phase).toBe('intro');
+    expect(records.filter(({ value }) => value.includes(newSeed))).toEqual([
+      {
+        action: 'REPLACE',
+        value: `/fanstocks?seed=${newSeed}&rules=1`,
+      },
+    ]);
+  });
+
+  it('clears old AI timing and visibility ownership during external reinitialization', () => {
+    const control = createRouteControl();
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout');
+    const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout');
+    const records: RouteRecord[] = [];
+    const { result } = renderHook(() => useFanStocksController(), {
+      wrapper: makeWrapper('/fanstocks?seed=seed-one&rules=1', {
+        routeControl: control,
+        routeRecords: records,
+      }),
+    });
+    reachAiDrafting(result.current);
+    const aiTimerIndex = latestTimerIndex(setTimeoutSpy.mock.calls, 650);
+    expect(aiTimerIndex).toBeGreaterThanOrEqual(0);
+    const aiTimer = setTimeoutSpy.mock.results[aiTimerIndex]?.value;
+
+    navigateExternally(control, '/fanstocks?seed=seed-two&rules=1');
+
+    expect(clearTimeoutSpy).toHaveBeenCalledWith(aiTimer);
+    setVisibility('visible');
+    act(() => document.dispatchEvent(new Event('visibilitychange')));
+    act(() => vi.advanceTimersByTime(650));
+    expect(result.current.state).toMatchObject({
+      seed: 'seed-two',
+      phase: 'intro',
+      paused: false,
+    });
+
+    reachMarket(result);
+    setVisibility('hidden');
+    act(() => document.dispatchEvent(new Event('visibilitychange')));
+    expect(result.current.state.paused).toBe(true);
+    navigateExternally(control, '/fanstocks');
+    expect(result.current.state).toMatchObject({ phase: 'market', paused: true });
+
+    setVisibility('visible');
+    act(() => document.dispatchEvent(new Event('visibilitychange')));
+    expect(result.current.state.paused).toBe(true);
   });
 
   it('keeps every action callback stable across renders', () => {
