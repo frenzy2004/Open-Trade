@@ -247,6 +247,21 @@ function isPositiveVersion(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) >= 1;
 }
 
+function validRematchIdentity(
+  seed: string,
+  rematchIndex: number,
+  phase: unknown,
+): boolean {
+  if (rematchIndex === 0) return true;
+  if (phase === 'intro' || phase === 'tutorial') return false;
+  const prefix = `rematch-${rematchIndex.toString(36)}-`;
+  if (!seed.startsWith(prefix)) return false;
+  const suffix = seed.slice(prefix.length);
+  if (!/^[0-9a-z]{1,7}$/.test(suffix)) return false;
+  const suffixValue = Number.parseInt(suffix, 36);
+  return suffixValue <= 0xffff_ffff && suffixValue.toString(36) === suffix;
+}
+
 function validDraft(value: unknown, seed: string): boolean {
   if (!hasExactKeys(value, DRAFT_KEYS)) return false;
   const canonicalGroups = createFanStocksState(seed).draft.groups;
@@ -382,6 +397,7 @@ function replayTrades(
   );
   const lastTick = priceHistory.at(-1)?.tick;
   if (lastTick === undefined) return null;
+  const latestTradeTick = Math.min(lastTick, TOTAL_MARKET_TICKS - 1);
   const resolvedIncomingTicks = new Set<number>();
   let previousTick = -1;
 
@@ -390,7 +406,7 @@ function replayTrades(
     if (
       event === null
       || event.createdAtTick < previousTick
-      || event.createdAtTick > lastTick
+      || event.createdAtTick > latestTradeTick
       || FANSTOCKS_RULES.incomingTradeTicks.some((tick) => (
         tick < event.createdAtTick && tick <= lastTick && !resolvedIncomingTicks.has(tick)
       ))
@@ -522,12 +538,11 @@ function validState(value: unknown): value is FanStocksState {
     || !validDraft(value.draft, value.seed)
     || !validPriceFrames(value.priceHistory, value.seed)
   ) return false;
-  if (
-    (value.rematchIndex as number) > 0
-    && !new RegExp(
-      `^rematch-${(value.rematchIndex as number).toString(36)}-[a-z0-9]+$`,
-    ).test(value.seed)
-  ) return false;
+  if (!validRematchIdentity(
+    value.seed,
+    value.rematchIndex as number,
+    value.phase,
+  )) return false;
   if (!validPhaseState(value)) return false;
 
   if (value.phase === 'intro'
@@ -567,19 +582,15 @@ function decodeFanStocksSave(raw: unknown): GameSaveDecodeResult<FanStocksSaveV1
   }
   const candidate = snapshot.value;
   if (
-    !Object.hasOwn(candidate, 'schemaVersion')
-    || !Object.hasOwn(candidate, 'rulesetVersion')
+    !hasExactKeys(candidate, SAVE_KEYS)
     || !isPositiveVersion(candidate.schemaVersion)
     || !isPositiveVersion(candidate.rulesetVersion)
+    || !isCanonicalIsoTimestamp(candidate.savedAt)
+    || !validState(candidate.state)
   ) return { ok: false, reason: 'corrupt' };
   if (candidate.schemaVersion !== 1 || candidate.rulesetVersion !== 1) {
     return { ok: false, reason: 'incompatible' };
   }
-  if (
-    !hasExactKeys(candidate, SAVE_KEYS)
-    || !isCanonicalIsoTimestamp(candidate.savedAt)
-    || !validState(candidate.state)
-  ) return { ok: false, reason: 'corrupt' };
   return {
     ok: true,
     value: deepFreeze(candidate as unknown as FanStocksSaveV1),
@@ -658,7 +669,7 @@ export function getFanStocksProgressBadge(): GameProgressBadge | null {
   if (state.phase === 'ai-drafting') {
     return {
       label: 'FanStocks',
-      value: 'AI portfolios drafting',
+      value: `Draft round ${FANSTOCKS_RULES.draftRounds} of ${FANSTOCKS_RULES.draftRounds}`,
       tone: 'positive',
     };
   }
@@ -674,5 +685,8 @@ export function getFanStocksProgressBadge(): GameProgressBadge | null {
 }
 
 export function resetFanStocksProgress(): void {
-  fanStocksStore.clear();
+  const cleared = fanStocksStore.clear();
+  if (!cleared.ok) {
+    throw new Error(`FanStocks game save reset failed: ${cleared.reason}`);
+  }
 }

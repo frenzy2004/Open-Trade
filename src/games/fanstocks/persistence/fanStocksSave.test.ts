@@ -1,6 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createSeededRng } from '../../../shared/rng/seededRng';
+import { AI_PERSONALITIES } from '../content/personalities';
+import { STOCKS } from '../content/stocks';
 import type { AiId } from '../content/types';
+import { buildFanStocksResult } from '../engine/ranking';
 import { PARTICIPANT_ORDER, TOTAL_MARKET_TICKS } from '../engine/rules';
+import {
+  createOutgoingTrade,
+  decideOutgoingTrade,
+  resolveTrade,
+} from '../engine/trades';
 import {
   createFanStocksState,
   fanStocksReducer,
@@ -85,6 +94,46 @@ function outgoingState(status: 'accepted' | 'rejected'): FanStocksState {
     }
   }
   throw new Error(`Missing deterministic outgoing ${status} state`);
+}
+
+function submitFirstOutgoing(state: FanStocksState): FanStocksState {
+  if (state.portfolios === null) throw new Error('Missing portfolios');
+  const opponentId = 'momentum';
+  const playerGives = at(state.portfolios.player.tickers, 0);
+  const playerReceives = at(state.portfolios[opponentId].tickers, 0);
+  const next = fanStocksReducer(state, {
+    type: 'SUBMIT_OUTGOING',
+    opponentId,
+    playerGives,
+    playerReceives,
+  });
+  if (next.tradeLog.length !== state.tradeLog.length + 1) {
+    throw new Error('Outgoing trade was not recorded');
+  }
+  return next;
+}
+
+function forgedOutgoingAtTick(state: FanStocksState, tick: number) {
+  if (state.portfolios === null) throw new Error('Missing portfolios');
+  const opponentId = 'momentum';
+  const playerGives = at(state.portfolios.player.tickers, 0);
+  const playerReceives = at(state.portfolios[opponentId].tickers, 0);
+  const offer = createOutgoingTrade(
+    state.portfolios,
+    opponentId,
+    playerGives,
+    playerReceives,
+    tick,
+  );
+  const personality = AI_PERSONALITIES.find(({ id }) => id === opponentId);
+  if (personality === undefined) throw new Error('Missing Momentum personality');
+  const status = decideOutgoingTrade(
+    offer,
+    personality,
+    STOCKS,
+    createSeededRng(state.seed).fork(`trade:${offer.id}`),
+  );
+  return resolveTrade(state.portfolios, offer, status);
 }
 
 function encodedState(state: FanStocksState): Record<string, unknown> {
@@ -191,6 +240,23 @@ describe('fanStocksSave', () => {
     ]) expectCorrupt(bad);
   });
 
+  it('classifies malformed future-looking envelopes as corrupt', () => {
+    const base = encodedState(createFanStocksState('future-malformed'));
+    const withoutTimestamp: Record<string, unknown> = {
+      ...base,
+      schemaVersion: 2,
+    };
+    delete withoutTimestamp.savedAt;
+    const cases = [
+      { ...base, schemaVersion: 2, savedAt: 'invalid' },
+      withoutTimestamp,
+      { ...base, rulesetVersion: 2, state: null },
+      { ...base, schemaVersion: 2, state: {} },
+      { ...base, rulesetVersion: 2, extra: true },
+    ];
+    for (const raw of cases) expectCorrupt(raw);
+  });
+
   it('rejects non-canonical timestamps in decode and create', () => {
     const base = encodedState(createFanStocksState('timestamp'));
     for (const savedAt of [
@@ -269,6 +335,27 @@ describe('fanStocksSave', () => {
       stateRecord(raw)[key] = value;
       expectCorrupt(raw);
     }
+  });
+
+  it('accepts reachable rematches but rejects unreachable rematch phases and suffixes', () => {
+    const rematch = fanStocksReducer(resultsState('review-rematch'), { type: 'REMATCH' });
+    const valid = createFanStocksSave(rematch, SAVED_AT);
+    expect(fanStocksSaveCodec.decode(fanStocksSaveCodec.encode(valid))).toEqual({
+      ok: true,
+      value: valid,
+    });
+
+    for (const phase of ['intro', 'tutorial'] as const) {
+      const raw = encodedState(rematch);
+      const state = stateRecord(raw);
+      state.phase = phase;
+      state.tutorialSeen = false;
+      expectCorrupt(raw);
+    }
+
+    const forgedSuffix = encodedState(draftState('rematch-1-10000000'));
+    stateRecord(forgedSuffix).rematchIndex = 1;
+    expectCorrupt(forgedSuffix);
   });
 
   it('rejects discontinuous, incomplete, unbounded, non-finite, and deterministic-price tampering', () => {
@@ -369,6 +456,30 @@ describe('fanStocksSave', () => {
     }
   });
 
+  it('rejects result trades at tick 60 but permits market trades at its current tick', () => {
+    const market = advanceToTick(marketState('last-market-trade'), 59);
+    const tradedMarket = submitFirstOutgoing(market);
+    const marketSave = createFanStocksSave(tradedMarket, SAVED_AT);
+    expect(fanStocksSaveCodec.decode(fanStocksSaveCodec.encode(marketSave))).toEqual({
+      ok: true,
+      value: marketSave,
+    });
+
+    const complete = resultsState('forged-result-trade');
+    const finalFrame = complete.priceHistory.at(-1);
+    if (finalFrame === undefined) throw new Error('Missing final frame');
+    const forged = forgedOutgoingAtTick(complete, TOTAL_MARKET_TICKS);
+    const eventLog = [...complete.tradeLog, forged.event];
+    const raw = encodedState(complete);
+    const state = stateRecord(raw);
+    state.tradeLog = structuredClone(eventLog);
+    state.portfolios = structuredClone(forged.portfolios);
+    state.result = structuredClone(
+      buildFanStocksResult(forged.portfolios, finalFrame, eventLog),
+    );
+    expectCorrupt(raw);
+  });
+
   it('loads ready, corrupt, incompatible, and storage-unavailable outcomes', () => {
     saveToStorage(draftState('storage-ready'));
     expect(fanStocksStore.load()).toMatchObject({ status: 'ready' });
@@ -410,7 +521,7 @@ describe('fanStocksSave', () => {
     const cases = [
       [createFanStocksState('badge-ready'), 'League ready'],
       [draftOne(draftState('badge-draft')), 'Draft round 2 of 3'],
-      [aiDraftingState('badge-ai'), 'AI portfolios drafting'],
+      [aiDraftingState('badge-ai'), 'Draft round 3 of 3'],
       [advanceToTick(marketState('badge-market'), 12), 'Tuesday market'],
       [resultsState('badge-results'), 'League complete'],
     ] as const;
@@ -436,5 +547,23 @@ describe('fanStocksSave', () => {
     resetFanStocksProgress();
     expect(fanStocksStore.load()).toEqual({ status: 'empty' });
     expect(localStorage.getItem('unrelated')).toBe('keep');
+  });
+
+  it('throws without claiming reset success when storage removal fails', () => {
+    localStorage.setItem('unrelated', 'keep');
+    saveToStorage(createFanStocksState('clear-failure'));
+    const before = localStorage.getItem(fanStocksSaveCodec.key);
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      throw new Error('denied');
+    });
+    try {
+      expect(() => resetFanStocksProgress()).toThrow(
+        'FanStocks game save reset failed: storage-unavailable',
+      );
+      expect(localStorage.getItem(fanStocksSaveCodec.key)).toBe(before);
+      expect(localStorage.getItem('unrelated')).toBe('keep');
+    } finally {
+      removeItem.mockRestore();
+    }
   });
 });
