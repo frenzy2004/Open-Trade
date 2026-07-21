@@ -36,6 +36,18 @@ test('keeps Vercel linkage local and sends a restrictive browser policy', () => 
   assert.match(headers.get('permissions-policy'), /camera=\(\)/u)
 })
 
+test('allows Phaser to decode same-origin textures through object URLs', () => {
+  const index = read('index.html')
+  const config = JSON.parse(read('vercel.json'))
+  const globalRule = config.headers.find(({ source }) => source === '/(.*)')
+  const vercelPolicy = globalRule.headers.find(
+    ({ key }) => key.toLowerCase() === 'content-security-policy',
+  ).value
+
+  assert.match(index, /img-src 'self' data: blob:/u)
+  assert.match(vercelPolicy, /img-src 'self' data: blob:/u)
+})
+
 test('the ordinary quality gate includes media and release budgets', () => {
   const packageJson = JSON.parse(read('package.json'))
   assert.match(packageJson.scripts.check, /check:assets/u)
@@ -46,4 +58,37 @@ test('the ordinary quality gate includes media and release budgets', () => {
     packageJson.scripts['test:deployment-smoke'],
     /run-deployment-smoke\.mjs/u,
   )
+})
+
+test('deployment smoke proves the portable build below a nested mount', () => {
+  const smokeRunner = read('scripts/release/run-deployment-smoke.mjs')
+
+  assert.match(
+    smokeRunner,
+    /name:\s*'portable relative build',[\s\S]*?basePath:\s*'\/portable\/Open-Trade\/'/u,
+  )
+})
+
+test('offline verification rejects failed media requests explicitly', () => {
+  const offlineSpec = read('tests/e2e/offline.spec.ts')
+
+  assert.match(offlineSpec, /expect\(failedRequests\)\.toEqual\(\[\]\)/u)
+})
+
+test('CI enforces the deployment matrix and provisions audio verification', () => {
+  const ci = read('.github/workflows/ci.yml')
+
+  assert.match(ci, /actions\/setup-python@v6/u)
+  assert.match(ci, /npm run test:deployment-smoke/u)
+  assert.match(ci, /(?:apt-get install[^\n]*ffmpeg|command -v ffprobe)/u)
+})
+
+test('Pages verification and deployment use separate least-privilege jobs', () => {
+  const pages = read('.github/workflows/pages.yml')
+
+  assert.match(pages, /\n {2}verify:\n/u)
+  assert.match(pages, /\n {2}deploy:\n/u)
+  assert.match(pages, /needs:\s*verify/u)
+  assert.match(pages, /id:\s*deployment/u)
+  assert.match(pages, /url:\s*\$\{\{ steps\.deployment\.outputs\.page_url \}\}/u)
 })

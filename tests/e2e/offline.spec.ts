@@ -20,6 +20,7 @@ test('replays the cached hub and every game route after the network is removed',
   const consoleErrors: string[] = []
   const missingResponses: string[] = []
   const failedRequests: string[] = []
+  let offlineEnabled = false
   page.on('pageerror', (error) => pageErrors.push(error.message))
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text())
@@ -28,8 +29,15 @@ test('replays the cached hub and every game route after the network is removed',
     if (response.status() === 404) missingResponses.push(response.url())
   })
   page.on('requestfailed', (request) => {
+    const failure = request.failure()?.errorText ?? 'unknown failure'
+    const isCachedManifestRevalidation = offlineEnabled
+      && request.resourceType() === 'fetch'
+      && new URL(request.url()).pathname === `${BASE_PATH}manifest.webmanifest`
+      && failure === 'net::ERR_ABORTED'
+    if (isCachedManifestRevalidation) return
+
     failedRequests.push(
-      `${request.resourceType()} ${request.url()} ${request.failure()?.errorText ?? 'unknown failure'}`,
+      `${request.resourceType()} ${request.url()} ${failure}`,
     )
   })
 
@@ -68,6 +76,7 @@ test('replays the cached hub and every game route after the network is removed',
   const cachedAudioUrl = cachedRuntimeUrls.find((url) => url.endsWith('.ogg'))
   expect(cachedAudioUrl).toBeDefined()
 
+  offlineEnabled = true
   await context.setOffline(true)
   const offlineManifestStatus = await page.evaluate(async () => {
     try {
@@ -133,6 +142,7 @@ test('replays the cached hub and every game route after the network is removed',
   await expect(page.getByRole('dialog', { name: 'Settings' })).not.toBeVisible()
 
   expect(pageErrors).toEqual([])
-  expect(consoleErrors, failedRequests.join('\n')).toEqual([])
+  expect(consoleErrors).toEqual([])
   expect(missingResponses).toEqual([])
+  expect(failedRequests).toEqual([])
 })

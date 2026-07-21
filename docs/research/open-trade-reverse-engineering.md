@@ -198,3 +198,32 @@ Date: 2026-07-21
 - Run `29818777482` verified the repaired FanStocks/shared-shell integration.
 - Run `29819398138` verified complete FanStocks league and responsive coverage plus release-budget tooling.
 - Run `29820272913` verified integrated Founder Mode, emitted/offline-cached Higgsfield media, and the root-safe Vercel build configuration at `9880b9c`.
+
+### Fresh-document offline verification
+
+- Failure: the first offline test warmed every game route online and then changed only the hash. That proved client routing, but a missing document shell or route chunk could still pass from the already-open page.
+- Recovery: install the worker from the hub only, reload once to establish control, remove the network, then perform a distinct document navigation with a unique query for every never-visited hash route. The service worker now also synthesizes exact 206 byte ranges from cached audio.
+- Follow-on failure: Vite's preview response varied on `Origin`, so exact CacheStorage matching missed otherwise valid module responses offline.
+- Recovery: asset lookup uses `ignoreVary` while remaining same-origin and content-addressed; the test asserts cached route CSS, JavaScript, manifest, and an exact 100-byte Ogg range.
+- Rule: an offline hash transition is not an offline page load. Change the document URL and assert the emitted runtime graph, response status, byte range, and absence of request failures.
+
+### Parallel-branch asset-catalog integration
+
+- Failure: cherry-picking the Runner media commit over the shared catalog produced two identical blocks of static asset imports. TypeScript correctly rejected the duplicate bindings even though Git reported an automatic merge.
+- Recovery: remove only the duplicate block, retain the 16 explicit `?url` imports, and rerun type checking plus emitted-asset validation before continuing the remaining cherry-picks.
+- Rule: a conflict-free cherry-pick is not necessarily a semantic merge. Run the cheapest compiler boundary after every cross-cutting catalog or manifest integration.
+
+### Wallstreet Surfers independent review
+
+- Failure: the renderer cached sprites and roll labels by event ID but never reconciled IDs that disappeared from authoritative state. Collected/pruned objects could remain visible, and a restart could preserve stale render artifacts.
+- Recovery: reconcile renderer maps on every snapshot and destroy absent objects; regression tests cover pruning and restart. The follow-up also tightened stage-owned touch gestures, modal/gamepad input guards, five-metric mobile HUD visibility, three-second gate feedback, and deterministic death/restart/coin/gate E2E.
+- Evidence: the independent reviewer approved the final delta with 163 focused tests and both real desktop/touch scenarios passing.
+- Rule: a retained-mode renderer must remove objects as deliberately as it creates them; simulation correctness alone cannot prevent stale visuals.
+
+### Deployment-matrix and CSP audit
+
+- Failure: the portable relative build was originally served at `/`, where both root-absolute and relative asset URLs work. The test therefore could not prove portability. CI also omitted the matrix, and the offline test collected request failures without asserting them.
+- Recovery: serve the portable build at `/portable/Open-Trade/`, explicitly fail on every unexpected request error, and enforce Pages, Vercel-root, and nested-portable smoke runs in CI. Pages verification and privileged deployment now use separate jobs.
+- Follow-on failure: the first nested run revealed that the restrictive CSP blocked Phaser's same-origin texture decoder because it creates `blob:` image URLs. The route stayed playable via fallback primitives, hiding the missing Higgsfield textures.
+- Recovery: allow `blob:` only in `img-src` in both the HTML and Vercel policies. Keep scripts, workers, frames, objects, and network connections restricted. The full three-shape deployment matrix then passed with every game route freshly loaded offline.
+- Rule: security policy checks need a production runtime exercise. A fallback UI can conceal blocked media, so assert console errors, 404 responses, and all non-intentional request failures.

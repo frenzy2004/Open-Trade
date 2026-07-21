@@ -23,7 +23,7 @@ const deployments = [
   },
   {
     name: 'portable relative build',
-    basePath: '/',
+    basePath: '/portable/Open-Trade/',
     buildCommand: 'npm run build:higgsfield',
   },
 ]

@@ -18,6 +18,15 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - name: Use Python 3.13
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y ffmpeg
+          command -v ffprobe
       - name: Install dependencies
         run: npm ci
       - name: Install Playwright browsers
@@ -26,3 +35,5 @@ jobs:
         run: npm run check
       - name: Run production E2E
         run: npm run test:e2e
+      - name: Verify Pages, Vercel, and nested portable deployments
+        run: npm run test:deployment-smoke
