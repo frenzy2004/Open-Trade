@@ -133,3 +133,38 @@ Date: 2026-07-21
 - Run `29801969052` verified the reviewed trade milestone at `3d77949`.
 - Run `29803179165` verified the shared ranking/portfolio-validation milestone at `28d1409`.
 - Run `29804742652` verified the deterministic reducer milestone at `e1532d6`.
+- Run `29807415385` verified the reviewed FanStocks save milestone.
+- Run `29810723247` verified controller reinitialization and timer recovery.
+- Run `29815076232` verified the hardened FanStocks draft topology.
+
+### Browser-test argument forwarding
+
+- Failure: passing focused browser files through the ordinary npm separator selected no files because npm and Vitest parsed the arguments at different layers.
+- Recovery: use `npm exec -- vitest ...` for direct focused Vitest calls, or `npm run test:browser -- <files>` when invoking the project script.
+- Rule: confirm the runner reports the intended file and test count; a fast command with zero selected tests is not verification.
+
+### Vercel CLI discovery
+
+- Failure: `npx --yes vercel@latest whoami` waited for more than a minute and returned no useful output.
+- Recovery: install the pinned Vercel CLI directly, then `vercel whoami` returned authenticated account `moonlantern24-1017` and project listing worked.
+- Rule: when a one-shot package runner is silent, verify the direct CLI path before treating authentication or network access as blocked.
+
+### Service-worker partial audio responses
+
+- Failure risk: CacheStorage rejects HTTP 206 responses. Caching every successful audio response would turn a valid range request into a rejected fetch promise and break playback.
+- Recovery: return partial responses live and cache only complete status-200 media responses; full cached audio can satisfy later offline requests.
+- Rule: `response.ok` is too broad for CacheStorage because it includes 206. Gate cache writes on a complete response status.
+
+### FanStocks vertical-slice integration drift
+
+- Failure: GitHub Actions run `29818212834` reached the full-suite boundary and found that the new FanStocks reset cleared its game save but no longer reported a failed hub-progress reset.
+- Recovery: route reset now clears the validated FanStocks store first, then resets derived hub progress and throws a stage-specific error when that second write fails.
+- Follow-on failure: run `29818381614` then exposed shell/browser tests that still expected the placeholder `FanStocks` heading, the removed placeholder challenge copy/back link, and legacy save key `open-trade:game:fanstocks`.
+- Recovery: integration tests now wait for the real `Fantasy Stock Leagues` heading, navigate through the persistent OpenTrade brand link, and use the codec key `opentrade.fanstocks`; the complete local browser suite passed 19/19.
+- Rule: replacing a placeholder route changes cross-boundary UI and storage contracts. Search the whole repository for old headings, links, and keys, and run the complete shared browser suite—not only the game-focused tests—before pushing.
+
+### Local CLI availability
+
+- Failure: the GitHub CLI executable was not available on the current PowerShell `PATH`, even though authenticated `git push` worked.
+- Recovery: public GitHub Actions pages supplied run status and annotations without exposing credentials.
+- Rule: distinguish missing local tooling from missing repository authority; use a read-only public/API surface for diagnostics and keep credential material out of command output.
