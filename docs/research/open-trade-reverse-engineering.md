@@ -34,6 +34,13 @@ Date: 2026-07-21
 
 ## Failures and recoveries
 
+### Hub progress cards stayed stale after game saves
+
+- Failure: FanStocks and Wallstreet Surfers persisted their own saves, but returning to the hub still showed `No active league` and a best score of `0`.
+- Cause: both routes wrote only their game-specific stores; the hub intentionally reads a separate compact progress store.
+- Recovery: added pure progress-badge projections and synchronized the hub store only after each canonical game save succeeds. FanStocks suppresses duplicate badge writes while retrying a failed hub write; Runner distinguishes a game-save failure from a hub-card failure.
+- Regression proof: focused controller/route tests first reproduced both stale badges, then passed after the fix. A live Vercel playthrough returned from a Tuesday FanStocks market and a 130-point Runner game to hub badges of `Tuesday market` and `130`.
+
 ### Full-page screenshot timeout
 
 - Failure: a 5,650px animated homepage timed out during full-page capture.
