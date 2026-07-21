@@ -61,6 +61,13 @@ Date: 2026-07-21
 - Recovery: reacquiring the same listed tab ID restored capture.
 - Rule: distinguish a stale binding from a closed tab before creating duplicates.
 
+### Production E2E lazy-route replacement race
+
+- Failure: GitHub Actions run 29795756164 passed install and `npm run check`, then the production 44px audit failed after clicking Play FanStocks. Desktop failed every retry and touch was flaky.
+- Evidence: CI collected controls from the outgoing hub and measured them at 0 by 0 while React replaced the hub with the lazy FanStocks route. The unchanged focused test passed locally under `CI=1`, confirming a scheduling-sensitive boundary rather than a target-size regression.
+- Recovery: after every route action, wait for both the destination hash URL and its unique visible level-one heading before reading layout; after returning, wait for the hub URL and heading before using hub controls. Wait for dialogs to become visible before auditing them and hidden before continuing.
+- Rule: an action promise confirms input delivery, not application readiness. Gate production geometry and follow-up interactions on observable destination state; never add sleep time or weaken the layout assertion to hide a transition race.
+
 ### Real-time runner timing
 
 - Failures: uncontrolled or poorly timed runs hit barriers at 75m/94m and later obstacles around 172m; a lane change after screenshot capture was too late to avoid a train at 124m.

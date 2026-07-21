@@ -23,6 +23,23 @@ async function expectKeyboardFocus(locator: Locator) {
   await expect(locator).toHaveCSS('outline-width', '3px')
 }
 
+async function expectHubReady(page: Page) {
+  await expect(page).toHaveURL(/#\/$/)
+  await expect(
+    page.getByRole('heading', { name: 'Choose your market', level: 1 }),
+  ).toBeVisible()
+}
+
+async function expectGameReady(
+  page: Page,
+  game: (typeof GAMES)[number],
+) {
+  await expect(page).toHaveURL(new RegExp(`#/${game.path}$`))
+  await expect(
+    page.getByRole('heading', { name: game.title, level: 1 }),
+  ).toBeVisible()
+}
+
 async function expectAccessibleViewport(
   page: Page,
   viewportWidth: number,
@@ -81,10 +98,7 @@ test('navigates through a lazy hash route and restores hub focus', async ({
 for (const game of GAMES) {
   test(`loads the lazy ${game.title} production route`, async ({ page }) => {
     await page.getByRole('link', { name: `Play ${game.title}` }).click()
-    await expect(page).toHaveURL(new RegExp(`#/${game.path}$`))
-    await expect(
-      page.getByRole('heading', { name: game.title, level: 1 }),
-    ).toBeVisible()
+    await expectGameReady(page, game)
   })
 }
 
@@ -93,6 +107,9 @@ test('persists shared sound and reduced-motion settings', async ({ page }) => {
   await page.getByRole('checkbox', { name: 'Sound' }).uncheck()
   await page.getByRole('checkbox', { name: 'Reduce motion' }).check()
   await page.getByRole('button', { name: 'Close Settings' }).click()
+  await expect(
+    page.getByRole('dialog', { name: 'Settings' }),
+  ).not.toBeVisible()
   await page.reload()
   await page.getByRole('button', { name: 'Settings' }).click()
 
@@ -148,21 +165,32 @@ test('has no horizontal overflow and preserves 44px targets', async ({
   for (const viewport of viewports) {
     await page.setViewportSize(viewport)
     await page.goto('/Open-Trade/#/')
+    await expectHubReady(page)
     await expectAccessibleViewport(page, viewport.width, 'hub')
 
     await page.getByRole('button', { name: 'Settings' }).click()
+    const settingsDialog = page.getByRole('dialog', { name: 'Settings' })
+    await expect(settingsDialog).toBeVisible()
     await expectAccessibleViewport(page, viewport.width, 'settings dialog')
     await page.getByRole('button', { name: 'Close Settings' }).click()
+    await expect(settingsDialog).not.toBeVisible()
 
     await page.getByRole('link', { name: 'Play FanStocks' }).click()
+    await expectGameReady(page, GAMES[0])
     await expectAccessibleViewport(page, viewport.width, 'lazy game route')
     await page.getByRole('link', { name: 'Back to all games' }).click()
+    await expectHubReady(page)
 
     await page
       .getByRole('button', { name: 'Reset Founder Mode progress' })
       .click()
+    const resetDialog = page.getByRole('dialog', {
+      name: 'Reset Founder Mode progress',
+    })
+    await expect(resetDialog).toBeVisible()
     await expectAccessibleViewport(page, viewport.width, 'reset dialog')
     await page.getByRole('button', { name: 'Keep progress' }).click()
+    await expect(resetDialog).not.toBeVisible()
   }
 })
 
