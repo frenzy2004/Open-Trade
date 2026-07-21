@@ -21,9 +21,12 @@ function asRecord(value: unknown): UnknownRecord | null {
 function asArray(value: unknown): readonly unknown[] | null {
   try {
     if (!Array.isArray(value)) return null
-    // Materializing the shallow list keeps later validation deterministic even
-    // when a caller supplies an Array proxy whose indexed reads can throw.
-    return Array.from(value as readonly unknown[])
+    const source = value as readonly unknown[]
+    // Materialize own slots only: a sparse array must not inherit authored
+    // sources, decisions, choices, or IDs from a poisoned prototype.
+    return Array.from({ length: source.length }, (_, index) =>
+      Object.hasOwn(source, index) ? source[index] : undefined,
+    )
   } catch {
     return null
   }
@@ -31,7 +34,7 @@ function asArray(value: unknown): readonly unknown[] | null {
 
 function read(record: UnknownRecord, key: string): unknown {
   try {
-    return record[key]
+    return Object.hasOwn(record, key) ? record[key] : undefined
   } catch {
     return undefined
   }
