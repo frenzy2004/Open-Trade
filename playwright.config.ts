@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const previewPort = process.env.PLAYWRIGHT_PORT ?? '4173'
+const previewUrl = `http://127.0.0.1:${previewPort}/Open-Trade/`
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
@@ -7,7 +10,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? 'github' : 'html',
   use: {
-    baseURL: 'http://127.0.0.1:4173/Open-Trade/',
+    baseURL: previewUrl,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -32,9 +35,10 @@ export default defineConfig({
   ],
   webServer: {
     command:
-      'npm run build && npm run preview -- --host 127.0.0.1 --port 4173',
-    url: 'http://127.0.0.1:4173/Open-Trade/',
-    reuseExistingServer: !process.env.CI,
+      `npm run build && npm run preview -- --host 127.0.0.1 --port ${previewPort}`,
+    url: previewUrl,
+    reuseExistingServer:
+      process.env.PLAYWRIGHT_PORT === undefined && !process.env.CI,
     timeout: 120_000,
   },
 })

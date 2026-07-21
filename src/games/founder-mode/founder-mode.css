@@ -425,7 +425,28 @@
   gap: 0.75rem;
 }
 
-.founder-style-options .ui-button[aria-checked='true'] {
+.founder-style-option {
+  display: inline-flex;
+  min-width: 8rem;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1rem;
+  border: 2px solid rgb(247 241 227 / 28%);
+  border-radius: 0.7rem;
+  background: rgb(255 255 255 / 6%);
+  color: var(--founder-ivory);
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.founder-style-option[data-selected='true'] {
+  border-color: var(--founder-gold);
+  background: var(--founder-gold);
+  color: var(--founder-ink);
+}
+
+.founder-style-option:has(input:focus-visible) {
   outline: 2px solid var(--founder-gold);
   outline-offset: 3px;
 }
@@ -526,5 +547,10 @@
 @media (prefers-reduced-motion: reduce) {
   .founder-mode {
     scroll-behavior: auto;
+    background-attachment: scroll;
   }
+}
+
+html[data-reduced-motion='true'] .founder-mode {
+  background-attachment: scroll;
 }

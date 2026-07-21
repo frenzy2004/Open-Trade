@@ -1,4 +1,9 @@
-import { useCallback, useState, type CSSProperties } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type CSSProperties,
+} from 'react'
 import { Link } from 'react-router-dom'
 import { setGameProgress } from '../../app/routes/progressStore'
 import { asset } from '../../assets/catalog'
@@ -59,6 +64,26 @@ export function FounderModeRoute() {
   const [view, setView] = useState<RouteView>('landing')
   const [notice, setNotice] = useState<string | null>(null)
 
+  useEffect(() => {
+    const loaded = founderStore.load()
+    const save =
+      loaded.status === 'ready'
+        ? loaded.value
+        : loaded.status === 'empty'
+          ? createDefaultFounderSave()
+          : null
+    if (!save) return
+    const progress = setGameProgress(
+      'founder-mode',
+      progressBadgeForFounderSave(save),
+    )
+    if (progress.ok) return
+    const noticeTimer = window.setTimeout(() => {
+      setNotice('Game loaded, but the hub streak could not update.')
+    }, 0)
+    return () => window.clearTimeout(noticeTimer)
+  }, [])
+
   const persist = useCallback((save: FounderSaveV1) => {
     const result = founderStore.save(save)
     if (!result.ok) {
@@ -86,8 +111,15 @@ export function FounderModeRoute() {
         setNotice('The existing save is still safe because replacement failed.')
         return
       }
-      setGameProgress('founder-mode', progressBadgeForFounderSave(fresh))
-      setNotice(null)
+      const progress = setGameProgress(
+        'founder-mode',
+        progressBadgeForFounderSave(fresh),
+      )
+      setNotice(
+        progress.ok
+          ? null
+          : 'Fresh save created, but the hub streak could not update.',
+      )
       setRouteState({ status: 'ready', save: fresh })
     }
 
@@ -171,6 +203,7 @@ export function FounderModeRoute() {
           episode={episode}
           style={save.activeRun.style}
           onTakeChair={() => actOnRun({ type: 'TAKE_CHAIR' })}
+          onExit={() => persist(Object.freeze({ ...save, activeRun: null }))}
         />
       ) : save.activeRun?.phase === 'decision' ? (
         <FounderDecision

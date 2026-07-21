@@ -33,22 +33,34 @@ export function FounderLanding({
       <fieldset className="founder-style-picker">
         <legend>Writing style</legend>
         <div className="founder-style-options" role="radiogroup" aria-label="Writing style">
-          <Button
-            variant={style === 'classic' ? 'primary' : 'secondary'}
-            role="radio"
-            aria-checked={style === 'classic'}
-            onClick={() => onStyleChange('classic')}
+          <label
+            className="founder-style-option"
+            data-selected={style === 'classic'}
           >
-            Classic
-          </Button>
-          <Button
-            variant={style === 'brainrot' ? 'primary' : 'secondary'}
-            role="radio"
-            aria-checked={style === 'brainrot'}
-            onClick={() => onStyleChange('brainrot')}
+            <input
+              className="visually-hidden"
+              type="radio"
+              name="founder-writing-style"
+              value="classic"
+              checked={style === 'classic'}
+              onChange={() => onStyleChange('classic')}
+            />
+            <span>Classic</span>
+          </label>
+          <label
+            className="founder-style-option"
+            data-selected={style === 'brainrot'}
           >
-            Brainrot
-          </Button>
+            <input
+              className="visually-hidden"
+              type="radio"
+              name="founder-writing-style"
+              value="brainrot"
+              checked={style === 'brainrot'}
+              onChange={() => onStyleChange('brainrot')}
+            />
+            <span>Brainrot</span>
+          </label>
         </div>
       </fieldset>
 
