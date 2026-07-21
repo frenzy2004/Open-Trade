@@ -32,13 +32,13 @@ export function RunnerDebugOverlay({
   return (
     <aside className="runner-debug" aria-label="Runner debug overlay">
       <dl>
-        <div><dt>Seed</dt><dd>{state.seed}</dd></div>
+        <div><dt>Seed</dt><dd data-runner-debug="seed">{state.seed}</dd></div>
         <div><dt>Time</dt><dd>{state.elapsedMs.toFixed(1)} ms</dd></div>
-        <div><dt>Distance</dt><dd>{state.distanceM.toFixed(2)} m</dd></div>
+        <div><dt>Distance</dt><dd data-runner-debug="distance">{state.distanceM.toFixed(2)} m</dd></div>
         <div><dt>Speed</dt><dd>{state.speedMps.toFixed(2)} m/s</dd></div>
         <div><dt>Lane</dt><dd>{state.lane}</dd></div>
         <div><dt>Vertical</dt><dd>{state.vertical}</dd></div>
-        <div><dt>Next entity</dt><dd>{findNextEntity(state)}</dd></div>
+        <div><dt>Next entity</dt><dd data-runner-debug="next-entity">{findNextEntity(state)}</dd></div>
         <div>
           <dt>Collision bounds</dt>
           <dd>±{COLLISION_HALF_WINDOW_M.toFixed(2)} m</dd>

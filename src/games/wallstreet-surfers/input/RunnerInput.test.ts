@@ -194,6 +194,86 @@ describe('RunnerInput', () => {
     expect(dispatch).toHaveBeenCalledWith('MOVE_LEFT')
   })
 
+  it('uses the native default GamepadList without iterating or cloning it', () => {
+    const gamepad: RunnerGamepadLike = {
+      connected: true,
+      mapping: 'standard',
+      axes: [-0.8, 0],
+      buttons: [],
+    }
+    const nativeList = {
+      0: gamepad,
+      length: 1,
+      [Symbol.iterator]: () => {
+        throw new Error('The native adapter must not iterate to clone GamepadList')
+      },
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(navigator, 'getGamepads')
+    Object.defineProperty(navigator, 'getGamepads', {
+      configurable: true,
+      value: () => nativeList,
+    })
+    const dispatch = vi.fn<(command: RunnerCommand) => void>()
+    try {
+      new RunnerInput(dispatch).pollGamepad()
+      expect(dispatch).toHaveBeenCalledWith('MOVE_LEFT')
+    } finally {
+      if (descriptor === undefined) {
+        Reflect.deleteProperty(navigator, 'getGamepads')
+      } else {
+        Object.defineProperty(navigator, 'getGamepads', descriptor)
+      }
+    }
+  })
+
+  it('yields global shortcuts to handled events, controls, and open dialogs', () => {
+    const dispatch = vi.fn<(command: RunnerCommand) => void>()
+    const runnerInput = new RunnerInput(dispatch)
+    runnerInput.attach(window)
+    const formInput = document.createElement('input')
+    const editable = document.createElement('div')
+    const button = document.createElement('button')
+    editable.contentEditable = 'true'
+    document.body.append(formInput, editable, button)
+
+    const send = (target: EventTarget, code: string, prevented = false) => {
+      const event = new KeyboardEvent('keydown', {
+        bubbles: true,
+        cancelable: true,
+        code,
+      })
+      if (prevented) event.preventDefault()
+      target.dispatchEvent(event)
+      return event
+    }
+
+    try {
+      expect(send(formInput, 'Space').defaultPrevented).toBe(false)
+      expect(send(editable, 'ArrowLeft').defaultPrevented).toBe(false)
+      expect(send(button, 'Space').defaultPrevented).toBe(false)
+      send(window, 'ArrowRight', true)
+
+      const dialog = document.createElement('dialog')
+      dialog.setAttribute('open', '')
+      document.body.append(dialog)
+      expect(send(window, 'Escape').defaultPrevented).toBe(false)
+      dialog.remove()
+
+      const runnerSurface = document.createElement('div')
+      document.body.append(runnerSurface)
+      const runnerEvent = send(runnerSurface, 'ArrowRight')
+      expect(runnerEvent.defaultPrevented).toBe(true)
+      expect(dispatch).toHaveBeenCalledTimes(1)
+      expect(dispatch).toHaveBeenCalledWith('MOVE_RIGHT')
+      runnerSurface.remove()
+    } finally {
+      runnerInput.detach()
+      formInput.remove()
+      editable.remove()
+      button.remove()
+    }
+  })
+
   it('rejects duplicate attachment and tolerates unavailable gamepads', () => {
     const target = new EventTarget()
     const input = new RunnerInput(vi.fn(), { getGamepads: () => [null] })

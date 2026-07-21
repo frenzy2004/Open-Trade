@@ -22,6 +22,7 @@
     "check:assets": "node scripts/assets/validate-assets.mjs",
     "check:audio": "python scripts/assets/verify-audio.py",
     "check:release": "node scripts/release/check-budgets.mjs dist",
+    "runner:assets": "node scripts/check-runner-assets.mjs",
     "verify:release": "npm run lint && npm run typecheck && npm test && npm run test:browser && npm run test:release-script && npm run check:assets && npm run check:audio && npm run build:higgsfield && npm run check:release && npm run test:e2e",
     "check": "npm run lint && npm run typecheck && npm test && npm run test:browser && npm run test:release-script && npm run build"
   },

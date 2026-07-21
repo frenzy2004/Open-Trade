@@ -262,6 +262,7 @@ export function WallstreetSurfersRoute({
           className="runner-canvas-mount"
           data-testid="runner-canvas-mount"
           role="img"
+          tabIndex={0}
           aria-label="Wallstreet Surfers three-lane game world"
         />
         {snapshot !== null ? (

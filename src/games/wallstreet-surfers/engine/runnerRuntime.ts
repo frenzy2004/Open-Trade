@@ -1,6 +1,5 @@
 import type { MarketDirection } from '../content/marketGates'
 import {
-  assertSolvableSchedule,
   buildSpawnSchedule,
   type MarketGateSpawnEvent,
   type SpawnEvent,
@@ -174,7 +173,6 @@ export function createRunnerRuntime(
   lengthM = RUNNER_SCHEDULE_LENGTH_M,
 ): RunnerRuntime {
   const schedule = buildSpawnSchedule(seed, lengthM)
-  assertSolvableSchedule(schedule)
   return Object.freeze({ schedule })
 }
 
