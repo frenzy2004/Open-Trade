@@ -15,9 +15,13 @@ import {
   it,
   vi,
 } from 'vitest'
+import { createSeededRng } from '../../../shared/rng/seededRng'
 import { STOCKS } from '../content/stocks'
 import type { StockCard } from '../content/types'
-import type { DraftState } from '../engine/draftReducer'
+import {
+  createDraftState,
+  type DraftState,
+} from '../engine/draftReducer'
 import { DraftScreen } from './DraftScreen'
 import { FanStocksIntro } from './FanStocksIntro'
 import { StockArtwork } from './StockArtwork'
@@ -105,6 +109,21 @@ const selectingDraft: DraftState = {
   status: 'selecting',
 }
 
+function arrayWithInheritedEntries<T>(values: readonly T[]): T[] {
+  const sparse = new Array<T>(values.length)
+  const prototype = Object.create(Array.prototype) as object
+  values.forEach((value, index) => {
+    Object.defineProperty(prototype, String(index), {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value,
+    })
+  })
+  Object.setPrototypeOf(sparse, prototype)
+  return sparse
+}
+
 const callbacks = () => ({
   onOpenDetail: vi.fn(),
   onMoveDetail: vi.fn(),
@@ -133,6 +152,18 @@ function expectDraftUnavailable() {
     screen.queryByRole('button', { name: /^Read /u }),
   ).not.toBeInTheDocument()
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+}
+
+function expectEmptyDraftSlots() {
+  expect(
+    screen.getByRole('progressbar', {
+      name: '0 of 3 stocks drafted',
+    }),
+  ).toHaveAttribute('aria-valuenow', '0')
+  const hand = screen.getByRole('list', { name: 'Your drafted stocks' })
+  expect(
+    within(hand).getAllByRole('listitem').map((slot) => slot.textContent),
+  ).toEqual(['Empty slot 1', 'Empty slot 2', 'Empty slot 3'])
 }
 
 describe('FanStocksIntro', () => {
@@ -215,6 +246,76 @@ describe('TutorialDialog', () => {
 })
 
 describe('DraftScreen', () => {
+  it('preserves valid frozen reducer state objects', () => {
+    const draft = createDraftState(
+      STOCKS.map(({ ticker }) => ticker),
+      createSeededRng('task-10-frozen-draft'),
+    )
+    expect(Object.isFrozen(draft)).toBe(true)
+
+    renderDraft(draft)
+
+    expect(
+      screen.getByRole('heading', { name: 'Round 1 of 3 · Pick 1 stock' }),
+    ).toBeVisible()
+    expect(
+      screen.getAllByRole('button', { name: /^Read /u }),
+    ).toHaveLength(3)
+  })
+
+  it('rejects an array masquerading as a draft object', () => {
+    const draft = Object.assign([], selectingDraft) as unknown as DraftState
+
+    expectRenderDoesNotThrow(<DraftScreen draft={draft} {...callbacks()} />)
+    expectDraftUnavailable()
+  })
+
+  it('rejects inherited draft state fields', () => {
+    const inheritedDraft = {
+      ...selectingDraft,
+      roundIndex: 1,
+      picks: ['XLE'],
+    } satisfies DraftState
+    const draft = Object.create(inheritedDraft) as DraftState
+
+    expectRenderDoesNotThrow(<DraftScreen draft={draft} {...callbacks()} />)
+    expectDraftUnavailable()
+    expectEmptyDraftSlots()
+  })
+
+  it('rejects outer group slots inherited through a custom prototype', () => {
+    const draft = {
+      ...selectingDraft,
+      groups: arrayWithInheritedEntries(groups),
+    } satisfies DraftState
+
+    expectRenderDoesNotThrow(<DraftScreen draft={draft} {...callbacks()} />)
+    expectDraftUnavailable()
+  })
+
+  it('rejects ticker slots inherited by a sparse inner group', () => {
+    const inheritedGroup = arrayWithInheritedEntries(groups[0])
+    const draft = {
+      ...selectingDraft,
+      groups: [inheritedGroup, groups[1], groups[2]],
+    } satisfies DraftState
+
+    expectRenderDoesNotThrow(<DraftScreen draft={draft} {...callbacks()} />)
+    expectDraftUnavailable()
+  })
+
+  it('rejects prior picks inherited by a sparse picks array', () => {
+    const draft = {
+      ...selectingDraft,
+      roundIndex: 1,
+      picks: arrayWithInheritedEntries(['XLE']),
+    } satisfies DraftState
+
+    expectRenderDoesNotThrow(<DraftScreen draft={draft} {...callbacks()} />)
+    expectDraftUnavailable()
+    expectEmptyDraftSlots()
+  })
+
   it('composes under the app main as a single labelled region', () => {
     const { container } = render(
       <main>

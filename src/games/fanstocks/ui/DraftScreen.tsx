@@ -10,9 +10,16 @@ import { StockDetailDialog } from './StockDetailDialog'
 
 const DRAFT_SLOT_COUNT = FANSTOCKS_RULES.cardsPerPortfolio
 const CANDIDATE_COUNT = FANSTOCKS_RULES.candidatesPerRound
+const DRAFT_STATE_FIELDS = [
+  'groups',
+  'roundIndex',
+  'picks',
+  'inspectedTicker',
+  'status',
+] as const
 
 function isRecord(value: unknown): value is Record<PropertyKey, unknown> {
-  return typeof value === 'object' && value !== null
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function normalizeDisplayTickers(
@@ -25,7 +32,12 @@ function normalizeDisplayTickers(
 
   const tickers: Ticker[] = []
   const seen = new Set<Ticker>()
-  for (const candidate of value) {
+  for (let index = 0; index < value.length; index += 1) {
+    if (!Object.hasOwn(value, index)) {
+      continue
+    }
+
+    const candidate: unknown = value[index]
     if (
       typeof candidate !== 'string' ||
       !STOCK_BY_TICKER.has(candidate) ||
@@ -64,7 +76,12 @@ function exactDraftTopology(
 
   const groups: Ticker[][] = []
   const dealtTickers = new Set<Ticker>()
-  for (const rawGroup of value) {
+  for (let groupIndex = 0; groupIndex < value.length; groupIndex += 1) {
+    if (!Object.hasOwn(value, groupIndex)) {
+      return null
+    }
+
+    const rawGroup: unknown = value[groupIndex]
     if (
       !Array.isArray(rawGroup) ||
       rawGroup.length !== CANDIDATE_COUNT
@@ -74,7 +91,16 @@ function exactDraftTopology(
 
     const group: Ticker[] = []
     const groupTickers = new Set<Ticker>()
-    for (const rawTicker of rawGroup) {
+    for (
+      let tickerIndex = 0;
+      tickerIndex < rawGroup.length;
+      tickerIndex += 1
+    ) {
+      if (!Object.hasOwn(rawGroup, tickerIndex)) {
+        return null
+      }
+
+      const rawTicker: unknown = rawGroup[tickerIndex]
       if (
         typeof rawTicker !== 'string' ||
         !STOCK_BY_TICKER.has(rawTicker) ||
@@ -106,6 +132,10 @@ function exactDraftPicks(
   const picks: Ticker[] = []
   const pickedTickers = new Set<Ticker>()
   for (let index = 0; index < value.length; index += 1) {
+    if (!Object.hasOwn(value, index)) {
+      return null
+    }
+
     const rawPick: unknown = value[index]
     const group = groups[index]
     if (
@@ -143,6 +173,10 @@ function exactSelectingRound(
 function validateExactDraftShape(
   runtimeDraft: Record<PropertyKey, unknown>,
 ): ExactDraftShape | null {
+  if (!DRAFT_STATE_FIELDS.every((field) => Object.hasOwn(runtimeDraft, field))) {
+    return null
+  }
+
   const groups = exactDraftTopology(runtimeDraft.groups)
   if (groups === null) {
     return null
@@ -238,7 +272,7 @@ export function DraftScreen({
     ? draft
     : {}
   const displayPicks = normalizeDisplayTickers(
-    runtimeDraft.picks,
+    Object.hasOwn(runtimeDraft, 'picks') ? runtimeDraft.picks : undefined,
     DRAFT_SLOT_COUNT,
   )
   const draftedCount = displayPicks.length
