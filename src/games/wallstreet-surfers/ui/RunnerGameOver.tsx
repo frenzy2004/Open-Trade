@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '../../../shared/ui'
 import type { RunnerState } from '../engine/types'
@@ -9,13 +10,23 @@ export interface RunnerGameOverProps {
 }
 
 export function RunnerGameOver({ state, onRunAgain, onShare }: RunnerGameOverProps) {
+  const dialogRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (state.phase === 'gameOver') dialogRef.current?.focus()
+  }, [state.phase])
   if (state.phase !== 'gameOver') return null
   const failure = state.lastFailure ?? {
     message: 'The market caught you',
     tip: 'Read the next hazard and move early',
   }
   return (
-    <section className="runner-game-over" aria-labelledby="runner-game-over-title">
+    <section
+      ref={dialogRef}
+      className="runner-game-over"
+      role="alertdialog"
+      tabIndex={-1}
+      aria-labelledby="runner-game-over-title"
+    >
       <p className="eyebrow">Run over</p>
       <h2 id="runner-game-over-title">{failure.message}</h2>
       <p>{failure.tip}</p>

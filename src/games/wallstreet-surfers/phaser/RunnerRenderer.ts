@@ -86,6 +86,24 @@ export class RunnerRenderer {
     this.entityLabels.delete(id)
   }
 
+  private hasRenderableEntity(state: RunnerState, id: string): boolean {
+    for (const entity of state.entities) {
+      if (entity.id !== id || entity.resolved) continue
+      const aheadM = entity.distanceM - state.distanceM
+      return aheadM >= -1 && aheadM <= VISIBLE_DISTANCE_M
+    }
+    return false
+  }
+
+  private reconcileEntityVisuals(state: RunnerState): void {
+    for (const id of this.entitySprites.keys()) {
+      if (!this.hasRenderableEntity(state, id)) this.cleanupEntityVisual(id)
+    }
+    for (const id of this.entityLabels.keys()) {
+      if (!this.hasRenderableEntity(state, id)) this.cleanupEntityVisual(id)
+    }
+  }
+
   private entitySprite(obstacle: RunnerObstacle): Phaser.GameObjects.Image | null {
     const existing = this.entitySprites.get(obstacle.id)
     if (existing !== undefined) return existing
@@ -210,6 +228,7 @@ export class RunnerRenderer {
   }
 
   render(state: RunnerState): void {
+    this.reconcileEntityVisuals(state)
     const laneX = LANE_CENTER_X + state.lane * LANE_GAP_X
     const jumpOffset = state.vertical === 'jumping' ? -70 : 0
     this.graphics.clear()

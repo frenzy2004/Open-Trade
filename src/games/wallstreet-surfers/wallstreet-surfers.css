@@ -25,7 +25,8 @@
 .runner-stage {
   position: relative;
   isolation: isolate;
-  min-height: min(45rem, 68vw);
+  aspect-ratio: 16 / 9;
+  min-height: 0;
   overflow: hidden;
   border: 3px solid var(--color-ink);
   border-radius: var(--radius-lg);
@@ -34,6 +35,9 @@
   background-size: cover;
   box-shadow: var(--shadow-card);
   color: #fffaf0;
+  overscroll-behavior: contain;
+  touch-action: none;
+  user-select: none;
 }
 
 .runner-stage::after {
@@ -55,6 +59,11 @@
   position: absolute;
   z-index: 1;
   inset: 0;
+  touch-action: none;
+}
+
+.runner-canvas-mount:focus-visible {
+  outline-offset: -5px;
 }
 
 .runner-canvas-mount canvas {
@@ -254,23 +263,50 @@
   }
 
   .runner-stage {
-    min-height: 36rem;
+    aspect-ratio: 4 / 3;
+    min-height: 0;
     border-radius: var(--radius-md);
     background-position: 52% center;
   }
 
-  .runner-hud__stats > div:nth-child(4),
-  .runner-hud__stats > div:nth-child(5) {
-    display: none;
+  .runner-hud {
+    right: var(--space-2);
+    left: var(--space-2);
+    grid-template-columns: 1fr;
+  }
+
+  .runner-hud__stats {
+    display: grid;
+    width: 100%;
+    max-width: none;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: var(--space-1);
   }
 
   .runner-hud__stats > div {
-    min-width: 4.5rem;
-    padding: 0.35rem 0.5rem;
+    min-width: 0;
+    padding: 0.3rem 0.15rem;
+    text-align: center;
+  }
+
+  .runner-hud dt {
+    overflow: hidden;
+    font-size: 0.48rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .runner-hud dd {
+    font-size: 0.75rem;
+    white-space: nowrap;
   }
 
   .runner-hud progress {
-    width: 58vw;
+    width: 100%;
+  }
+
+  .runner-hud .ui-button {
+    display: none;
   }
 
   .runner-gate,
@@ -282,6 +318,8 @@
 
   .runner-game-over {
     top: auto;
+    max-height: calc(100% - 1.5rem);
+    overflow: auto;
     transform: translateX(-50%);
   }
 

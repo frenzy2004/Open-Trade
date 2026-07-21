@@ -15,7 +15,13 @@ export function MarketGatePrompt({ state, onAnswer }: MarketGatePromptProps) {
   const active = state.currentGate
   if (active !== null) {
     return (
-      <section className="runner-gate" aria-labelledby="runner-gate-title">
+      <section
+        className="runner-gate"
+        role="region"
+        aria-live="assertive"
+        aria-atomic="true"
+        aria-labelledby="runner-gate-title"
+      >
         <p className="eyebrow">Market gate · {active.gate.ticker}</p>
         <h2 id="runner-gate-title">Make the call</h2>
         <p>{active.gate.setup}</p>

@@ -22,13 +22,14 @@ const GAMEPAD_ROLL = 1 << 3
 const GAMEPAD_PAUSE = 1 << 4
 const MAX_SCANNED_GAMEPADS = 16
 const EMPTY_GAMEPADS = Object.freeze([]) as readonly (RunnerGamepadLike | null)[]
-const INTERACTIVE_SELECTOR = [
+const FORM_CONTROL_SELECTOR = [
   'input',
   'select',
   'textarea',
+].join(',')
+const ACTIVATION_CONTROL_SELECTOR = [
   'button',
   'a[href]',
-  '[contenteditable]:not([contenteditable="false"])',
   '[role="button"]',
 ].join(',')
 
@@ -91,11 +92,17 @@ function isContentEditableTarget(target: Element): boolean {
   return false
 }
 
-function eventBelongsToInterface(event: Event): boolean {
+function eventBelongsToInterface(event: Event, keyboardCode?: string): boolean {
   if (event.defaultPrevented || openModalExists()) return true
   if (!(event.target instanceof Element)) return false
-  return event.target.closest(INTERACTIVE_SELECTOR) !== null
+  if (
+    event.target.closest(FORM_CONTROL_SELECTOR) !== null
     || isContentEditableTarget(event.target)
+  ) {
+    return true
+  }
+  return event.target.closest(ACTIVATION_CONTROL_SELECTOR) !== null
+    && (keyboardCode === undefined || keyboardCode === 'Space')
 }
 
 function isPressed(gamepad: RunnerGamepadLike, index: number): boolean {
@@ -148,7 +155,7 @@ export class RunnerInput {
   private readonly handleKeyDown = (rawEvent: Event) => {
     const event = rawEvent as KeyboardEvent
     const command = KEYBOARD_COMMANDS[event.code]
-    if (command === undefined || eventBelongsToInterface(event)) return
+    if (command === undefined || eventBelongsToInterface(event, event.code)) return
     event.preventDefault()
     if (!event.repeat) this.dispatch(command)
   }
@@ -279,6 +286,10 @@ export class RunnerInput {
       nextMask = 0
     }
 
+    if (openModalExists()) {
+      this.gamepadMask = nextMask
+      return
+    }
     const pressed = nextMask & ~this.gamepadMask
     if ((pressed & GAMEPAD_LEFT) !== 0) this.dispatch('MOVE_LEFT')
     if ((pressed & GAMEPAD_RIGHT) !== 0) this.dispatch('MOVE_RIGHT')

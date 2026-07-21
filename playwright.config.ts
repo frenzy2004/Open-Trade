@@ -35,7 +35,7 @@ export default defineConfig({
       name: 'chromium-touch',
       use: {
         browserName: 'chromium',
-        viewport: { width: 375, height: 720 },
+        viewport: { width: 375, height: 812 },
         hasTouch: true,
         isMobile: true,
       },

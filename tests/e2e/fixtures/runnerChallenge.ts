@@ -3,6 +3,8 @@ export const RUNNER_E2E_CHALLENGE = Object.freeze({
   firstEntity: 'coin:iqmj8u-obstacle-0-0@62.0m',
   failure: 'AUCL train flattened you',
   tip: 'Switch lanes before the ticker train',
+  gateTicker: 'BEMD',
+  gateAnswer: 'LONG',
 })
 
 export function runnerChallengeHash(): string {
@@ -13,4 +15,3 @@ export function runnerChallengeHash(): string {
   })
   return `#/wallstreet-surfers?${params.toString()}`
 }
-

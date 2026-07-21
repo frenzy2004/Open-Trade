@@ -20,6 +20,7 @@ const MAX_FRAME_DELTA_MS = 250
 const MAX_CATCH_UP_STEPS = 5
 const MAX_PENDING_COMMANDS = 8
 const SEMANTIC_PUBLISH_TICKS = 6
+const CPU_SAMPLE_LIMIT = 600
 const FRAME_EPSILON_MS = 1e-9
 const EMPTY_COMMANDS = Object.freeze([]) as readonly RunnerCommand[]
 
@@ -65,6 +66,8 @@ export interface RunnerDiagnostics {
   readonly droppedCommands: number
   readonly droppedFrameMs: number
   readonly pendingCommands: number
+  readonly sampledSimulationSteps: number
+  readonly maxSimulationStepMs: number
 }
 
 function freezeEntity(entity: RunnerEntity): RunnerEntity {
@@ -146,6 +149,8 @@ export function createRunnerGame(
   let commandDrainCount = 0
   let droppedCommands = 0
   let droppedFrameMs = 0
+  let sampledSimulationSteps = 0
+  let maxSimulationStepMs = 0
   let destroyed = false
   let autoPaused = false
   let lastPublished: RunnerState | null = null
@@ -183,7 +188,13 @@ export function createRunnerGame(
       && catchUpSteps < MAX_CATCH_UP_STEPS
     ) {
       const frameCommands = drainCommands()
+      const stepStartedAt = performance.now()
       stepRunnerRuntime(runtime, state, frameCommands, FIXED_STEP_MS)
+      if (sampledSimulationSteps < CPU_SAMPLE_LIMIT) {
+        const stepDurationMs = Math.max(0, performance.now() - stepStartedAt)
+        sampledSimulationSteps += 1
+        maxSimulationStepMs = Math.max(maxSimulationStepMs, stepDurationMs)
+      }
       accumulatorMs -= FIXED_STEP_MS
       catchUpSteps += 1
       if (Math.abs(accumulatorMs) < FRAME_EPSILON_MS) accumulatorMs = 0
@@ -307,6 +318,8 @@ export function createRunnerGame(
       commandDrainCount,
       droppedCommands,
       droppedFrameMs,
+      sampledSimulationSteps,
+      maxSimulationStepMs,
       pendingCommands: pendingCommands.length,
     }),
     destroy() {

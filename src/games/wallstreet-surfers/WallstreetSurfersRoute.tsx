@@ -194,6 +194,34 @@ export function WallstreetSurfersRoute({
   }, [settings.reducedMotion])
 
   useEffect(() => {
+    let pausedByModal = false
+    const syncModalPause = () => {
+      const game = gameRef.current
+      if (game === null) return
+      const modalOpen = document.querySelector(
+        'dialog[open], [role="dialog"][aria-modal="true"]',
+      ) !== null
+      const phase = game.snapshot().phase
+      if (modalOpen && !pausedByModal && phase === 'running') {
+        game.dispatch('PAUSE')
+        pausedByModal = true
+      } else if (!modalOpen && pausedByModal) {
+        if (phase === 'paused') game.dispatch('PAUSE')
+        pausedByModal = false
+      }
+    }
+    const observer = new MutationObserver(syncModalPause)
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ['aria-modal', 'open'],
+      childList: true,
+      subtree: true,
+    })
+    syncModalPause()
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
     if (tutorialStep !== 'complete' || tutorialCompleteRef.current) return
     runnerAudio.confirm()
     tutorialCompleteRef.current = true

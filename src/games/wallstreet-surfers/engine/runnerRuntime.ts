@@ -18,6 +18,7 @@ import {
 export const RUNNER_SCHEDULE_LENGTH_M = 100_000
 export const RUNNER_SPAWN_LOOKAHEAD_M = 90
 export const POWELL_PRESSURE_PER_SECOND = 0.6
+export const GATE_FEEDBACK_VISIBLE_TICKS = 180
 const EMPTY_COMMANDS = Object.freeze([]) as readonly RunnerCommand[]
 
 export interface RunnerRuntime {
@@ -168,6 +169,16 @@ function applyPowellPressure(state: RunnerState, elapsedDeltaMs: number): void {
   state.bestScore = Math.max(state.bestScore, state.score)
 }
 
+function expireGateFeedback(state: RunnerState): void {
+  const feedback = state.lastGateFeedback
+  if (
+    feedback !== null
+    && state.tick - feedback.resolvedAtTick > GATE_FEEDBACK_VISIBLE_TICKS
+  ) {
+    state.lastGateFeedback = null
+  }
+}
+
 export function createRunnerRuntime(
   seed: string,
   lengthM = RUNNER_SCHEDULE_LENGTH_M,
@@ -202,6 +213,7 @@ export function stepRunnerRuntime(
   const elapsedBefore = state.elapsedMs
   stepRunner(state, movementCommands, fixedDeltaMs)
   applyPowellPressure(state, state.elapsedMs - elapsedBefore)
+  expireGateFeedback(state)
   if (state.phase === 'running') {
     syncNextScheduleEvent(runtime, state)
     expireGate(runtime, state)
