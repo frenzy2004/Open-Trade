@@ -2,6 +2,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
+import { useState } from 'react'
 import { FounderModeRoute } from '../FounderModeRoute'
 import { apple1997 } from '../content/apple1997'
 import { founderEpisodes } from '../content/episodes'
@@ -12,6 +13,7 @@ import { FounderLanding } from './FounderLanding'
 
 afterEach(() => {
   cleanup()
+  vi.restoreAllMocks()
   window.localStorage.clear()
 })
 
@@ -42,14 +44,8 @@ describe('FounderLanding', () => {
     expect(
       screen.getByRole('radiogroup', { name: 'Writing style' }),
     ).toBeVisible()
-    expect(screen.getByRole('radio', { name: 'Classic' })).toHaveAttribute(
-      'aria-checked',
-      'true',
-    )
-    expect(screen.getByRole('radio', { name: 'Brainrot' })).toHaveAttribute(
-      'aria-checked',
-      'false',
-    )
+    expect(screen.getByRole('radio', { name: 'Classic' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Brainrot' })).not.toBeChecked()
 
     await user.click(screen.getByRole('radio', { name: 'Brainrot' }))
     await user.click(screen.getByRole('button', { name: 'Play episode' }))
@@ -58,6 +54,34 @@ describe('FounderLanding', () => {
     expect(onStyleChange).toHaveBeenCalledWith('brainrot')
     expect(onPlay).toHaveBeenCalledTimes(1)
     expect(onOpenArchive).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses native radio arrow-key behavior with one tab stop', async () => {
+    function KeyboardHarness() {
+      const [style, setStyle] = useState<'classic' | 'brainrot'>('classic')
+      return (
+        <FounderLanding
+          episode={netflix2011}
+          style={style}
+          streakDays={0}
+          onStyleChange={setStyle}
+          onPlay={vi.fn()}
+          onOpenArchive={vi.fn()}
+        />
+      )
+    }
+
+    const user = userEvent.setup()
+    render(<KeyboardHarness />)
+    const classic = screen.getByRole('radio', { name: 'Classic' })
+    const brainrot = screen.getByRole('radio', { name: 'Brainrot' })
+    expect(classic.tagName).toBe('INPUT')
+
+    classic.focus()
+    await user.keyboard('{ArrowRight}')
+    expect(brainrot).toHaveFocus()
+    expect(brainrot).toBeChecked()
+    expect(classic).not.toBeChecked()
   })
 
   it('renders all archive episodes newest first and returns the selection', async () => {
@@ -116,10 +140,7 @@ describe('FounderModeRoute landing persistence', () => {
         <FounderModeRoute />
       </MemoryRouter>,
     )
-    expect(screen.getByRole('radio', { name: 'Brainrot' })).toHaveAttribute(
-      'aria-checked',
-      'true',
-    )
+    expect(screen.getByRole('radio', { name: 'Brainrot' })).toBeChecked()
     expect(screen.getByText('Apple Computer')).toBeVisible()
   })
 
@@ -143,6 +164,36 @@ describe('FounderModeRoute landing persistence', () => {
     )
     expect(
       screen.getByRole('heading', { name: 'Founder Mode', level: 1 }),
+    ).toBeVisible()
+    expect(window.localStorage.getItem(FOUNDER_SAVE_KEY)).not.toBe('{broken')
+  })
+
+  it('surfaces a hub-progress failure after replacing a corrupt save', async () => {
+    const user = userEvent.setup()
+    window.localStorage.setItem(FOUNDER_SAVE_KEY, '{broken')
+    const originalSetItem = Storage.prototype.setItem
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+      this: Storage,
+      key: string,
+      value: string,
+    ) {
+      if (key === 'open-trade:hub-progress') {
+        throw new Error('Hub storage unavailable')
+      }
+      originalSetItem.call(this, key, value)
+    })
+
+    render(
+      <MemoryRouter>
+        <FounderModeRoute />
+      </MemoryRouter>,
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Start fresh and replace save' }),
+    )
+
+    expect(
+      screen.getByText(/hub streak could not update/i),
     ).toBeVisible()
     expect(window.localStorage.getItem(FOUNDER_SAVE_KEY)).not.toBe('{broken')
   })

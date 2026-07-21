@@ -5,12 +5,14 @@ interface FounderIntroProps {
   readonly episode: FounderEpisode
   readonly style: WritingStyle
   readonly onTakeChair: () => void
+  readonly onExit: () => void
 }
 
 export function FounderIntro({
   episode,
   style,
   onTakeChair,
+  onExit,
 }: FounderIntroProps) {
   return (
     <section className="founder-screen founder-intro" aria-labelledby="founder-intro-title">
@@ -30,7 +32,12 @@ export function FounderIntro({
           <dd>{episode.decisions.length}</dd>
         </div>
       </dl>
-      <Button onClick={onTakeChair}>Take the chair</Button>
+      <div className="founder-actions">
+        <Button onClick={onTakeChair}>Take the chair</Button>
+        <Button variant="secondary" onClick={onExit}>
+          Exit episode
+        </Button>
+      </div>
     </section>
   )
 }
