@@ -214,8 +214,7 @@ function deterministicLeagueCode(state: SeasonState): string {
   }
   let code = ''
   for (let index = 0; index < 6; index += 1) {
-    hash = (Math.imul(hash, 1_664_525) + 1_013_904_223) >>> 0
-    code += LEAGUE_ALPHABET[hash % LEAGUE_ALPHABET.length]
+    code += LEAGUE_ALPHABET[(hash >>> (index * 5)) & 31]
   }
   return code
 }
@@ -553,7 +552,7 @@ export function seasonReducer(state: SeasonState, action: SeasonAction): SeasonS
       })
     }
     case 'REMATCH': {
-      if (state.phase !== 'receipt') return state
+      if (state.phase !== 'receipt' || state.weekIndex === Number.MAX_SAFE_INTEGER) return state
       return freezeState({
         phase: 'draft',
         weekIndex: state.weekIndex + 1,

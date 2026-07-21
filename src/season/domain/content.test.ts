@@ -38,4 +38,12 @@ describe('SEASON_THESIS_DECK', () => {
       expect(thesis.updates.every(Object.isFrozen)).toBe(true)
     }
   })
+
+  it('keeps absolute direction distinct from benchmark-relative performance', () => {
+    expect(SEASON_THESIS_DECK.some(({ result }) =>
+      result.direction === 'long'
+        ? result.assetReturnBps > 0 && result.assetReturnBps < result.benchmarkReturnBps
+        : result.assetReturnBps < 0 && result.assetReturnBps > result.benchmarkReturnBps,
+    )).toBe(true)
+  })
 })

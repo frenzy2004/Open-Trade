@@ -105,6 +105,8 @@ describe('Season save codec', () => {
     if (!decoded.ok) throw new Error(decoded.reason)
     expect(decoded.value).not.toBe(save)
     expect(decoded.value.state).not.toBe(state)
+    expect(decoded.value.state.calls[0]?.original).toBe(decoded.value.state.draft[0])
+    expect(decoded.value.state.calls[0]?.current).toBe(decoded.value.state.calls[0]?.original)
     expect(Object.isFrozen(decoded.value)).toBe(true)
     expect(Object.isFrozen(decoded.value.state)).toBe(true)
     expect(Object.isFrozen(decoded.value.state.calls[0]?.original)).toBe(true)
@@ -145,6 +147,61 @@ describe('Season save codec', () => {
     expect(seasonSaveCodec.decode(customPrototype)).toEqual({ ok: false, reason: 'corrupt' })
     expect(seasonSaveCodec.decode(extraState)).toEqual({ ok: false, reason: 'corrupt' })
     expect(seasonSaveCodec.decode(extraCall)).toEqual({ ok: false, reason: 'corrupt' })
+  })
+
+  it('returns corrupt instead of throwing for hostile traps and exotic arrays', () => {
+    const throwingProxy = new Proxy<Record<string, unknown>>({}, {
+      getPrototypeOf: () => Object.prototype,
+      ownKeys: () => {
+        throw new Error('ownKeys denied')
+      },
+    })
+    const throwingAccessor = encodedSave()
+    Object.defineProperty(throwingAccessor, 'state', {
+      enumerable: true,
+      get: () => {
+        throw new Error('state denied')
+      },
+    })
+    const benignAccessor = encodedSave()
+    const accessorState = benignAccessor.state
+    Object.defineProperty(benignAccessor, 'state', {
+      enumerable: true,
+      get: () => accessorState,
+    })
+    const hiddenExtra = encodedSave()
+    Object.defineProperty(hiddenExtra, 'hidden', {
+      value: true,
+      enumerable: false,
+    })
+    const symbolExtra = encodedSave()
+    Object.defineProperty(symbolExtra, Symbol('injected'), {
+      value: true,
+      enumerable: true,
+    })
+    const sparseInsights = encodedSave()
+    const sparseReceipt = (sparseInsights.state as Record<string, unknown>)
+      .receipt as Record<string, unknown>
+    sparseReceipt.insights = new Array(4)
+
+    const decoratedInsights = encodedSave()
+    const decoratedReceipt = (decoratedInsights.state as Record<string, unknown>)
+      .receipt as Record<string, unknown>
+    const insights = decoratedReceipt.insights as string[] & { injected?: boolean }
+    insights.injected = true
+
+    for (const candidate of [
+      throwingProxy,
+      throwingAccessor,
+      benignAccessor,
+      hiddenExtra,
+      symbolExtra,
+      sparseInsights,
+      decoratedInsights,
+    ]) {
+      expect(() => seasonSaveCodec.decode(candidate)).not.toThrow()
+      expect(seasonSaveCodec.decode(candidate)).toEqual({ ok: false, reason: 'corrupt' })
+    }
   })
 
   it('rejects impossible phases, duplicates, future revisions, and forged scores', () => {

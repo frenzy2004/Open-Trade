@@ -79,13 +79,47 @@ function hasExactKeys(
   value: Record<string, unknown>,
   expected: readonly string[],
 ): boolean {
-  const keys = Object.keys(value)
-  return keys.length === expected.length
-    && expected.every((key) => Object.hasOwn(value, key))
+  try {
+    const keys = Reflect.ownKeys(value)
+    return keys.length === expected.length
+      && expected.every((key) => {
+        if (!keys.includes(key)) return false
+        const descriptor = Object.getOwnPropertyDescriptor(value, key)
+        return descriptor !== undefined
+          && 'value' in descriptor
+          && descriptor.enumerable
+      })
+  } catch {
+    return false
+  }
 }
 
 function isStandardArray(value: unknown): value is unknown[] {
-  return Array.isArray(value) && Object.getPrototypeOf(value) === Array.prototype
+  if (!Array.isArray(value)) return false
+  try {
+    if (Object.getPrototypeOf(value) !== Array.prototype) return false
+    const keys = Reflect.ownKeys(value)
+    if (keys.length !== value.length + 1 || !keys.includes('length')) return false
+    const lengthDescriptor = Object.getOwnPropertyDescriptor(value, 'length')
+    if (
+      lengthDescriptor === undefined
+      || !('value' in lengthDescriptor)
+      || lengthDescriptor.enumerable
+    ) return false
+    for (let index = 0; index < value.length; index += 1) {
+      const key = String(index)
+      const descriptor = Object.getOwnPropertyDescriptor(value, key)
+      if (
+        !keys.includes(key)
+        || descriptor === undefined
+        || !('value' in descriptor)
+        || !descriptor.enumerable
+      ) return false
+    }
+    return true
+  } catch {
+    return false
+  }
 }
 
 function isDirection(value: unknown): value is SeasonDirection {
@@ -315,11 +349,21 @@ function decodeSeasonState(value: unknown): SeasonState | null {
     )
   ) return null
 
+  const canonicalCalls = calls.map((call, index) => {
+    const original = draft[index]
+    if (original === undefined) return call
+    return Object.freeze({
+      ...call,
+      original,
+      current: call.revisions.length === 0 ? original : call.current,
+    })
+  })
+
   const provisional: SeasonState = Object.freeze({
     phase,
     weekIndex: value.weekIndex as number,
     draft: Object.freeze(draft),
-    calls: Object.freeze(calls),
+    calls: Object.freeze(canonicalCalls),
     league,
     updateIndex,
     settlement: null,
@@ -337,7 +381,7 @@ function decodeSeasonState(value: unknown): SeasonState | null {
   return Object.freeze({ ...provisional, settlement, receipt })
 }
 
-function decodeSeasonSave(value: unknown) {
+function decodeSeasonSaveUnsafe(value: unknown) {
   if (!isRecord(value) || !hasExactKeys(value, SAVE_KEYS)) {
     return { ok: false as const, reason: 'corrupt' }
   }
@@ -357,6 +401,14 @@ function decodeSeasonSave(value: unknown) {
       rulesetVersion: 1 as const,
       state,
     }),
+  }
+}
+
+function decodeSeasonSave(value: unknown) {
+  try {
+    return decodeSeasonSaveUnsafe(value)
+  } catch {
+    return { ok: false as const, reason: 'corrupt' }
   }
 }
 

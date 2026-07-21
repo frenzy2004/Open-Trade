@@ -76,7 +76,7 @@ export const SEASON_THESIS_DECK: readonly SeasonThesis[] = Object.freeze([
       { index: 1, day: 'Wednesday', title: 'Pricing softens in Europe', summary: 'European impression pricing falls as privacy changes create a temporary measurement gap for several verticals.', aiConfidence: 58, counterargument: 'Volume growth could still offset weaker price per impression.', catalyst: 'A regulatory ruling lands Thursday.', idealResponse: 'reduce' },
       { index: 2, day: 'Thursday', title: 'Regulatory risk clears', summary: 'The ruling avoids the harshest remedy and preserves Meta’s ability to offer personalized advertising with consent.', aiConfidence: 66, counterargument: 'Infrastructure depreciation remains a drag on operating margin.', catalyst: 'Friday platform engagement estimates settle the week.', idealResponse: 'increase' },
     ],
-    result: { direction: 'long', assetReturnBps: 340, benchmarkReturnBps: 125, reasonSignals: ['conversion', 'advertising', 'engagement', 'expense'], verdict: 'Conversion strength outweighed infrastructure expense.', outcomeSummary: 'Engagement and conversion estimates beat expectations, leaving Meta 2.15% ahead of QQQ.' },
+    result: { direction: 'long', assetReturnBps: 85, benchmarkReturnBps: 125, reasonSignals: ['conversion', 'advertising', 'engagement', 'expense'], verdict: 'Conversion held, but infrastructure spending capped relative performance.', outcomeSummary: 'Meta gained 0.85% as conversion improved, yet trailed QQQ by 0.40% after expense estimates rose.' },
   }),
   freezeThesis({
     id: 'tsla-margin-reset',

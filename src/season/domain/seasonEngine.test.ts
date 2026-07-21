@@ -175,6 +175,38 @@ describe('Season draft and league', () => {
       league: { code: 'XY7ZA8', role: 'member' },
     })
   })
+
+  it('uses the full six-character code space across ordered draft combinations', () => {
+    const ids = [
+      'nvda-ai-capex',
+      'meta-ad-efficiency',
+      'tsla-margin-reset',
+      'amzn-cloud-acceleration',
+      'xle-supply-squeeze',
+      'dkng-promo-normalization',
+    ]
+    const codes = new Set<string>()
+    let combinations = 0
+    for (const first of ids) {
+      for (const second of ids) {
+        for (const third of ids) {
+          if (new Set([first, second, third]).size !== 3) continue
+          const hosted = seasonReducer(committedState([
+            draftCall(first),
+            draftCall(second),
+            draftCall(third),
+          ]), { type: 'CREATE_LEAGUE' })
+          const code = hosted.league?.code
+          if (code === undefined) throw new Error('League code was not created')
+          codes.add(code)
+          combinations += 1
+        }
+      }
+    }
+
+    expect(combinations).toBe(120)
+    expect(codes.size).toBe(combinations)
+  })
 })
 
 describe('Season updates, settlement, and weekend receipt', () => {
@@ -309,6 +341,28 @@ describe('Season updates, settlement, and weekend receipt', () => {
     })
   })
 
+  it('scores correct absolute direction separately from benchmark underperformance', () => {
+    const meta = updatingState([
+      draftCall('meta-ad-efficiency', {
+        direction: 'long',
+        confidence: 100,
+        reason: 'Advertising conversion should strengthen despite higher expense.',
+      }),
+      draftCall(THESIS_IDS[0]),
+      draftCall(THESIS_IDS[2]),
+    ]).calls[0]
+    if (meta === undefined) throw new Error('Meta call was not committed')
+
+    expect(scoreSeasonCall(meta).score).toEqual({
+      direction: 35,
+      calibration: 25,
+      reasoning: 15,
+      evidenceResponse: 0,
+      benchmark: 0,
+      total: 75,
+    })
+  })
+
   it('settles Friday, creates weekend receipts, and rematches into the next week', () => {
     let state = updatingState()
     state = seasonReducer(state, { type: 'ADVANCE_UPDATE' })
@@ -344,5 +398,21 @@ describe('Season updates, settlement, and weekend receipt', () => {
       receipt: null,
     })
     expect(receipt?.weekIndex).toBe(1)
+  })
+
+  it('does not rematch past the largest persistable week index', () => {
+    let state = createSeasonState(Number.MAX_SAFE_INTEGER)
+    for (const thesisId of THESIS_IDS) {
+      state = seasonReducer(state, { type: 'ADD_DRAFT_CALL', call: draftCall(thesisId) })
+    }
+    state = seasonReducer(state, { type: 'COMMIT_DRAFT' })
+    state = seasonReducer(state, { type: 'CONTINUE_SOLO' })
+    state = seasonReducer(state, { type: 'ADVANCE_UPDATE' })
+    state = seasonReducer(state, { type: 'ADVANCE_UPDATE' })
+    state = seasonReducer(state, { type: 'ADVANCE_UPDATE' })
+    state = seasonReducer(state, { type: 'VIEW_RECEIPT' })
+
+    expect(state.phase).toBe('receipt')
+    expect(seasonReducer(state, { type: 'REMATCH' })).toBe(state)
   })
 })
